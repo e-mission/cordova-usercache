@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plugin xmlns="http://www.phonegap.com/ns/plugins/1.0"
+        id="edu.berkeley.eecs.emission.cordova.usercache"
+        version="0.0.1">
+
+  <name>UserCache</name>
+  <description>Cache messages to and from the server so that we can retrieve
+    them quickly. </description>
+  <author>K. Shankari (shankari@eecs.berkeley.edu)</author>
+  <license>Modified BSD license</license>
+
+  <engines>
+    <engine name="cordova" version=">=3.6.0"/>
+  </engines>
+
+  <asset src="www/usercache.js" target="js/usercache.js"/>
+
+  <js-module src="www/usercache.js" name="usercache">
+    <clobbers target="cordova.plugins.BEMUserCache" />
+  </js-module>
+
+  <platform name="android">
+    <config-file target="res/xml/config.xml" parent="/*">
+      <feature name="UserCache">
+        <!-- There is no native component, so this doesn't actually matter -->
+        <param name="android-package" value="edu.berkeley.eecs.emission.cordova.usercache.UserCache"/>
+      </feature>
+    </config-file>
+
+    <source-file src="src/android/UserCacheFactory.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
+    <source-file src="src/android/UserCache.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
+    <source-file src="src/android/BuiltinUserCache.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
+    <resource-file src="res/android/usercache_keys.xml" target-dir="res/values/usercache_keys.xml"/>
+  </platform>
+
+  <platform name="ios">
+    
+    <config-file target="config.xml" parent="/*">
+      <feature name="UserCache">
+        <!-- There is no native component, so this doesn't actually matter -->
+        <param name="ios-package" value="BEMBuiltinUserCache" />
+      </feature>
+    </config-file>
+
+    <header-file src="src/ios/BEMBuiltinUserCache.h"/>
+    <source-file src="src/ios/BEMBuiltinUserCache.m"/>
+    <resource-file src="src/ios/userCacheDB"/>
+    <resource-file src="res/ios/usercache_keys.plist"/>
+  </platform>
+</plugin>
