@@ -22,7 +22,6 @@
   <platform name="android">
     <config-file target="res/xml/config.xml" parent="/*">
       <feature name="UserCache">
-        <!-- There is no native component, so this doesn't actually matter -->
         <param name="android-package" value="edu.berkeley.eecs.emission.cordova.usercache.UserCache"/>
       </feature>
     </config-file>
@@ -30,14 +29,13 @@
     <source-file src="src/android/UserCacheFactory.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
     <source-file src="src/android/UserCache.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
     <source-file src="src/android/BuiltinUserCache.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
-    <resource-file src="res/android/usercache_keys.xml" target-dir="res/values/usercache_keys.xml"/>
+    <resource-file src="res/android/usercachekeys.xml" target="res/values/usercachekeys.xml"/>
   </platform>
 
   <platform name="ios">
     
     <config-file target="config.xml" parent="/*">
       <feature name="UserCache">
-        <!-- There is no native component, so this doesn't actually matter -->
         <param name="ios-package" value="BEMBuiltinUserCache" />
       </feature>
     </config-file>
@@ -45,6 +43,6 @@
     <header-file src="src/ios/BEMBuiltinUserCache.h"/>
     <source-file src="src/ios/BEMBuiltinUserCache.m"/>
     <resource-file src="src/ios/userCacheDB"/>
-    <resource-file src="res/ios/usercache_keys.plist"/>
+    <resource-file src="res/ios/usercachekeys.plist"/>
   </platform>
 </plugin>
