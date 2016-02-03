@@ -2,22 +2,22 @@
 var exec = require("cordova/exec")
 
 var UserCache = {
-    var TABLE_USER_CACHE = "userCache";
-    var KEY_WRITE_TS = "write_ts";
-    var KEY_READ_TS = "read_ts";
-    var KEY_TIMEZONE = "timezone";
-    var KEY_TYPE = "type";
-    var KEY_KEY = "key";
-    var KEY_PLUGIN = "plugin";
-    var KEY_DATA = "data";
+    TABLE_USER_CACHE: "userCache",
+    KEY_WRITE_TS: "write_ts",
+    KEY_READ_TS: "read_ts",
+    KEY_TIMEZONE: "timezone",
+    KEY_TYPE: "type",
+    KEY_KEY: "key",
+    KEY_PLUGIN: "plugin",
+    KEY_DATA: "data",
 
-    var METADATA_TAG = "metadata";
-    var DATA_TAG = "data";
+    METADATA_TAG: "metadata",
+    DATA_TAG: "data",
 
-    var SENSOR_DATA_TYPE = "sensor-data";
-    var MESSAGE_TYPE = "message";
-    var DOCUMENT_TYPE = "document";
-    var RW_DOCUMENT_TYPE = "rw-document";
+    SENSOR_DATA_TYPE: "sensor-data",
+    MESSAGE_TYPE: "message",
+    DOCUMENT_TYPE: "document",
+    RW_DOCUMENT_TYPE: "rw-document",
 
     /*
      * If this is not done, then we may read read the table before making any
@@ -50,11 +50,11 @@ var UserCache = {
              * is updated throughout the day. We should really override as part of the sync. But for now,
              * will deal with it in the client by retrieving the last entry.
              */
-            var selQuery = "SELECT "+KEY_DATA+" FROM "+TABLE_USER_CACHE +
-                " WHERE "+ KEY_KEY + " = '" + key + "'" +
-                " AND ("+ KEY_TYPE + " = '" + DOCUMENT_TYPE + "'" +
-                  " OR "+ KEY_TYPE + " = '" + RW_DOCUMENT_TYPE+ "') "+
-                  "ORDER BY "+KEY_WRITE_TS+" DESC LIMIT 1";
+            var selQuery = "SELECT "+UserCache.KEY_DATA+" FROM "+UserCache.TABLE_USER_CACHE +
+                " WHERE "+ UserCache.KEY_KEY + " = '" + key + "'" +
+                " AND ("+ UserCache.KEY_TYPE + " = '" + UserCache.DOCUMENT_TYPE + "'" +
+                  " OR "+ UserCache.KEY_TYPE + " = '" + UserCache.RW_DOCUMENT_TYPE+ "') "+
+                  "ORDER BY "+UserCache.KEY_WRITE_TS+" DESC LIMIT 1";
             console.log("About to execute query "+selQuery+" against userCache")
             tx.executeSql(selQuery,
                 [],
@@ -62,7 +62,7 @@ var UserCache = {
                     var resultList = [];
                     console.log("Result has "+data.rows.length+" rows");
                     for (i = 0; i < data.rows.length; i++) {
-                        resultList.push(data.rows.item(i)[KEY_DATA]);
+                        resultList.push(data.rows.item(i)[UserCache.KEY_DATA]);
                     }
                     successCallback(resultList);
                 }, function(e, response) {
@@ -72,11 +72,11 @@ var UserCache = {
     },
 
     getSensorData: function(key, successCallback, errorCallback) {
-        UserCache.getEntries(SENSOR_DATA_TYPE, key, successCallback, errorCallback);
+        UserCache.getEntries(UserCache.SENSOR_DATA_TYPE, key, successCallback, errorCallback);
     },
 
     getMessages: function(key, successCallback, errorCallback) {
-        UserCache.getEntries(MESSAGE_TYPE, key, successCallback, errorCallback);
+        UserCache.getEntries(UserCache.MESSAGE_TYPE, key, successCallback, errorCallback);
     },
 
     getEntries: function(type, key, callBack) {
@@ -86,11 +86,11 @@ var UserCache = {
              * is updated throughout the day. We should really override as part of the sync. But for now,
              * will deal with it in the client by retrieving the last entry.
              */
-            var selQuery = "SELECT "+KEY_WRITE_TS+"," + KEY_TIMEZONE+","+KEY_DATA+
-                " FROM "+TABLE_USER_CACHE +
-                " WHERE "+ KEY_KEY + " = '" + key + "'" +
-                " AND "+ KEY_TYPE + " = '" + type + "'" +
-                " ORDER BY "+KEY_WRITE_TS;
+            var selQuery = "SELECT "+UserCache.KEY_WRITE_TS+"," + UserCache.KEY_TIMEZONE+","+UserCache.KEY_DATA+
+                " FROM "+UserCache.TABLE_USER_CACHE +
+                " WHERE "+ UserCache.KEY_KEY + " = '" + key + "'" +
+                " AND "+ UserCache.KEY_TYPE + " = '" + type + "'" +
+                " ORDER BY "+UserCache.KEY_WRITE_TS;
             console.log("About to execute query "+selQuery+" against userCache")
             tx.executeSql(selQuery,
                 [],
@@ -101,13 +101,13 @@ var UserCache = {
                         row = data.rows.item(i)
                         entry = {};
                         metadata = {};
-                        metadata.write_ts = row[KEY_WRITE_TS];
-                        metadata.tz = row[KEY_TIMEZONE];
+                        metadata.write_ts = row[UserCache.KEY_WRITE_TS];
+                        metadata.tz = row[UserCache.KEY_TIMEZONE];
                         metadata.write_fmt_time = moment.unix(metadata.write_ts)
                                                     .tz(metadata.tz)
                                                     .format("llll");
                         entry.metadata = metadata;
-                        entry.data = row[KEY_DATA];
+                        entry.data = row[UserCache.KEY_DATA];
                         resultList.push(entry);
                     }
                     successCallBack(resultList);
