@@ -6,7 +6,7 @@
 //  Copyright (c) 2014 Kalyanaraman Shankari. All rights reserved.
 //
 
-#import "BuiltinUserCache.h"
+#import "BEMBuiltinUserCache.h"
 #import "DataUtils.h"
 #import "SimpleLocation.h"
 #import "Metadata.h"
@@ -81,7 +81,7 @@ static BuiltinUserCache *_database;
             return nil;
         }
         // Read the list of valid keys
-        NSString *plistStatNamesPath = [[NSBundle mainBundle] pathForResource:@"usercache_keys" ofType:@"plist"];
+        NSString *plistStatNamesPath = [[NSBundle mainBundle] pathForResource:@"usercachekeys" ofType:@"plist"];
         statsNamesDict = [[NSDictionary alloc] initWithContentsOfFile:plistStatNamesPath];
         
         NSString *infoPath = [[NSBundle mainBundle] pathForResource:@"Info" ofType:@"plist"];

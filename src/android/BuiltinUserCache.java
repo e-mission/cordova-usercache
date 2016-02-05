@@ -1,4 +1,4 @@
-package edu.berkeley.eecs.cfc_tracker.usercache;
+package edu.berkeley.eecs.emission.cordova.usercache;
 
 import android.content.ContentValues;
 import android.content.Context;
@@ -16,11 +16,11 @@ import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.TimeZone;
 
-import edu.berkeley.eecs.cfc_tracker.NotificationHelper;
-import edu.berkeley.eecs.cfc_tracker.R;
-import edu.berkeley.eecs.cfc_tracker.location.LocationTrackingConfig;
+import edu.berkeley.eecs.emission.R;
+import edu.berkeley.eecs.emission.cordova.tracker.location.LocationTrackingConfig;
 import edu.berkeley.eecs.emission.cordova.unifiedlogger.Log;
-import edu.berkeley.eecs.cfc_tracker.wrapper.Metadata;
+import edu.berkeley.eecs.emission.cordova.tracker.wrapper.Metadata;
+import edu.berkeley.eecs.emission.cordova.unifiedlogger.NotificationHelper;
 
 /**
  * Concrete implementation of the user cache that stores the entries

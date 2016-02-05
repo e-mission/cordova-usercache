@@ -1,4 +1,4 @@
-package edu.berkeley.eecs.cfc_tracker.usercache;
+package edu.berkeley.eecs.emission.cordova.usercache;
 
 import android.content.Context;
 
