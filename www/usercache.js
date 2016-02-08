@@ -79,7 +79,7 @@ var UserCache = {
         UserCache.getEntries(UserCache.MESSAGE_TYPE, key, successCallback, errorCallback);
     },
 
-    getEntries: function(type, key, callBack) {
+    getEntries: function(type, key, successCallback, errorCallback) {
         UserCache.db.readTransaction(function(tx) {
             /*
              * We can have multiple entries for a particular key as the document associated with the key
@@ -110,7 +110,7 @@ var UserCache = {
                         entry.data = row[UserCache.KEY_DATA];
                         resultList.push(entry);
                     }
-                    successCallBack(resultList);
+                    successCallback(resultList);
                 }, function(e) {
                     console.log(e);
                     errorCallback(response);
