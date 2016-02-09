@@ -420,7 +420,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                 JSONObject entry = new JSONObject();
                 entry.put(METADATA_TAG, new JSONObject(new Gson().toJson(md)));
                 entry.put(DATA_TAG, new JSONObject(dataStr));
-                Log.d(cachedCtx, TAG, "For row " + i + ", about to send string " + entry.toString());
+                // Log.d(cachedCtx, TAG, "For row " + i + ", about to send string " + entry.toString());
                 entryArray.put(entry);
                 queryVal.moveToNext();
             }
