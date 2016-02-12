@@ -100,13 +100,37 @@ static BuiltinUserCache *_database;
 }
 
 - (NSString*)dbPath:(NSString*)dbName {
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory,
                                                          NSUserDomainMask, YES);
-    NSString *documentsDirectory = [paths objectAtIndex:0];
-    NSString *documentsPath = [documentsDirectory
-                               stringByAppendingPathComponent:dbName];
-    
-    return documentsPath;
+    NSString *libraryDirectory = [paths objectAtIndex:0];
+    NSString *nosync = [libraryDirectory stringByAppendingPathComponent:@"LocalDatabase"];
+    NSString *dbPath = [nosync stringByAppendingPathComponent:dbName];
+
+    NSError *err;
+    if ([[NSFileManager defaultManager] fileExistsAtPath: nosync])
+    {  
+        NSLog(@"no cloud sync at path: %@", nosync);
+        return dbPath;
+    } else
+    {  
+        if ([[NSFileManager defaultManager] createDirectoryAtPath: nosync withIntermediateDirectories:NO attributes: nil error:&err])
+        {  
+            NSURL *nosyncURL = [ NSURL fileURLWithPath: nosync];
+            if (![nosyncURL setResourceValue: [NSNumber numberWithBool: YES] 
+                                      forKey: NSURLIsExcludedFromBackupKey error: &err]) {  
+                NSLog(@"IGNORED: error setting nobackup flag in LocalDatabase directory: %@", err);
+            }
+            NSLog(@"no cloud sync at path: %@", nosync);
+            return dbPath;
+        }
+        else
+        {
+                // fallback:
+            NSLog(@"WARNING: error adding LocalDatabase directory: %@", err);
+            return [libraryDirectory stringByAppendingPathComponent:dbName];
+        }
+    }
+    return dbPath;
 }
 
 - (void)dealloc {
