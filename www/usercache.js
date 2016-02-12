@@ -24,27 +24,20 @@ var UserCache = {
      * native calls, and on iOS, that will cause us to create a loggerDB
      * instead of copying the template.
      */
-    init: function() {
-        /*
-         No native code call in here, so we can't really call anything in init.
-         We could either change this to use the UserCache interface directly,
-         or just assume that at least the startup transitions will be written
-         to the usercache.
-         before the webview is launched.
-
-        ULogger.log(ULogger.LEVEL_INFO, "finished init of native code", function(error) {
-            alert("Error "+error+" while initializing the unified logger");
-        });
-        */
-        UserCache.db = window.sqlitePlugin.openDatabase({
-            name: "userCacheDB",
-            location: 0,
-            createFromLocation: 1
-        })
+    db: function() {
+        // One handle for each thread
+        if (UserCache.dbHandle == null) {
+            UserCache.dbHandle = window.sqlitePlugin.openDatabase({
+                name: "userCacheDB",
+                location: 2,
+                createFromLocation: 1
+            });
+        }
+        return UserCache.dbHandle;
     },
 
     getDocument: function(key, successCallback, errorCallback) {
-        UserCache.db.readTransaction(function(tx) {
+        UserCache.db().readTransaction(function(tx) {
             /*
              * We can have multiple entries for a particular key as the document associated with the key
              * is updated throughout the day. We should really override as part of the sync. But for now,
@@ -80,7 +73,7 @@ var UserCache = {
     },
 
     getEntries: function(type, key, successCallback, errorCallback) {
-        UserCache.db.readTransaction(function(tx) {
+        UserCache.db().readTransaction(function(tx) {
             /*
              * We can have multiple entries for a particular key as the document associated with the key
              * is updated throughout the day. We should really override as part of the sync. But for now,
