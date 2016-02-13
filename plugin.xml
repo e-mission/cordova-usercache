@@ -36,12 +36,15 @@
     
     <config-file target="config.xml" parent="/*">
       <feature name="UserCache">
-        <param name="ios-package" value="BEMBuiltinUserCache" />
+        <param name="ios-package" value="BEMUserCachePlugin" />
+        <param name="onload" value="true"/>
       </feature>
     </config-file>
 
     <header-file src="src/ios/BEMBuiltinUserCache.h"/>
     <source-file src="src/ios/BEMBuiltinUserCache.m"/>
+    <header-file src="src/ios/BEMUserCachePlugin.h"/>
+    <source-file src="src/ios/BEMUserCachePlugin.m"/>
     <resource-file src="src/ios/userCacheDB"/>
     <resource-file src="res/ios/usercachekeys.plist"/>
   </platform>
