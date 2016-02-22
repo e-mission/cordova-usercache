@@ -22,13 +22,15 @@
   <platform name="android">
     <config-file target="res/xml/config.xml" parent="/*">
       <feature name="UserCache">
-        <param name="android-package" value="edu.berkeley.eecs.emission.cordova.usercache.UserCache"/>
+        <param name="android-package" value="edu.berkeley.eecs.emission.cordova.usercache.UserCachePlugin"/>
+        <param name="onload" value="true"/>
       </feature>
     </config-file>
 
     <source-file src="src/android/UserCacheFactory.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
     <source-file src="src/android/UserCache.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
     <source-file src="src/android/BuiltinUserCache.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
+    <source-file src="src/android/UserCachePlugin.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
     <resource-file src="res/android/usercachekeys.xml" target="res/values/usercachekeys.xml"/>
   </platform>
 
