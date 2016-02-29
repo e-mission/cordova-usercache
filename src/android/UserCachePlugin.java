@@ -3,6 +3,7 @@ package edu.berkeley.eecs.emission.cordova.usercache;
 import org.apache.cordova.*;
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import android.content.Context;
 
@@ -15,8 +16,12 @@ public class UserCachePlugin extends CordovaPlugin {
         // Let's just access the usercache so that it is created
         UserCache currCache = UserCacheFactory.getUserCache(cordova.getActivity());
         System.out.println("During plugin initialize, created usercache" + currCache);
-        // we need to put some kind of message - the table is created lazily during first use
-        currCache.putMessage(R.string.key_usercache_transition, "app launched");
+        // let's get a document - the table is created lazily during first use
+        try {
+            currCache.getDocument(R.string.key_usercache_transition, JSONObject.class);
+        } catch (Exception e) {
+            System.out.println("Expected error "+e+" while getting document since we are reading a dummy key");
+        }
     }
 
     @Override

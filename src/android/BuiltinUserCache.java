@@ -40,6 +40,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
 
     // Table names
     private static final String TABLE_USER_CACHE = "userCache";
+    private static final String TABLE_USER_CACHE_ERROR = "userCacheError";
 
     // USER_CACHE Table Columns names
     // We expand the metadata and store the data as a JSON blob
@@ -77,6 +78,13 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                 KEY_PLUGIN + " TEXT, " + KEY_DATA + " TEXT)";
         System.out.println("CREATE_USER_CACHE_TABLE = " + CREATE_USER_CACHE_TABLE);
         sqLiteDatabase.execSQL(CREATE_USER_CACHE_TABLE);
+        String CREATE_USER_CACHE_ERROR_TABLE = "CREATE TABLE " + TABLE_USER_CACHE_ERROR +" (" +
+                KEY_WRITE_TS + " REAL, "+ KEY_READ_TS +" REAL, " +
+                KEY_TIMEZONE + " TEXT, " +
+                KEY_TYPE + " TEXT, " + KEY_KEY + " TEXT, "+
+                KEY_PLUGIN + " TEXT, " + KEY_DATA + " TEXT)";
+        System.out.println("CREATE_USER_CACHE_ERROR_TABLE = " + CREATE_USER_CACHE_ERROR_TABLE);
+        sqLiteDatabase.execSQL(CREATE_USER_CACHE_ERROR_TABLE);
     }
 
     private String getKey(int keyRes) {
@@ -112,6 +120,20 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                 " at time "+newValues.getAsDouble(KEY_WRITE_TS));
         db.close();
         }
+
+    private void putErrorValue(Metadata md, String dataStr) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        ContentValues newValues = new ContentValues();
+        newValues.put(KEY_WRITE_TS, md.getWrite_ts());
+        newValues.put(KEY_TIMEZONE, md.getTimeZone());
+        newValues.put(KEY_TYPE, md.getType());
+        newValues.put(KEY_KEY, md.getKey());
+        newValues.put(KEY_DATA, dataStr);
+        db.insert(TABLE_USER_CACHE_ERROR, null, newValues);
+        System.out.println("Added error value for key "+ md.getKey());
+        db.close();
+    }
 
     @Override
     public <T> T getDocument(int keyRes, Class<T> classOfT) {
@@ -365,7 +387,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
      * Return a string version of the messages and rw documents that need to be sent to the server.
      */
 
-    public JSONArray sync_phone_to_server() throws JSONException {
+    public JSONArray sync_phone_to_server() {
         long lastTripEndTs = getLastTs();
         Log.d(cachedCtx, TAG, "Last trip end was at "+lastTripEndTs);
 
@@ -417,12 +439,20 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                  * So we are going to return a raw JSON object here instead of a GSONed object. That will also allow us to
                  * put it into the right wrapper object (phone_to_server or server_to_phone).
                  */
+                try {
                 JSONObject entry = new JSONObject();
                 entry.put(METADATA_TAG, new JSONObject(new Gson().toJson(md)));
                 entry.put(DATA_TAG, new JSONObject(dataStr));
                 // Log.d(cachedCtx, TAG, "For row " + i + ", about to send string " + entry.toString());
                 entryArray.put(entry);
                 queryVal.moveToNext();
+                } catch (JSONException e) {
+                    Log.e(cachedCtx, TAG, "Error " + e + " while converting data string " + dataStr + " to JSON, skipping it");
+                    // TODO: Re-enable once we resolve
+                    // https://github.com/e-mission/cordova-usercache/issues/7
+                    // putErrorValue(md, dataStr);
+                    queryVal.moveToNext();
+                }
             }
         }
         db.close();
