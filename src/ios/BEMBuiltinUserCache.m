@@ -11,9 +11,11 @@
 #import "SimpleLocation.h"
 #import "Metadata.h"
 #import "LocationTrackingConfig.h"
+#import "LocalNotificationManager.h"
 
 // Table name
 #define TABLE_USER_CACHE @"userCache"
+#define TABLE_USER_ERROR_CACHE @"userCacheError"
 
 // Column names
 #define KEY_WRITE_TS @"write_ts"
@@ -203,6 +205,36 @@ static BuiltinUserCache *_database;
     sqlite3_finalize(compiledStatement);
 }
 
+-(void)putErrorValue:(Metadata*)md dataStr:(NSString*)dataStr {
+    NSString *insertStatement = [NSString stringWithFormat:@"INSERT INTO %@ (%@, %@, %@, %@, %@) VALUES (?, ?, ?, ?, ?)",
+                                 TABLE_USER_ERROR_CACHE, KEY_WRITE_TS, KEY_TIMEZONE, KEY_TYPE, KEY_KEY, KEY_DATA];
+    sqlite3_stmt *compiledStatement;
+    if(sqlite3_prepare_v2(_database, [insertStatement UTF8String], -1, &compiledStatement, NULL) == SQLITE_OK) {
+        // The SQLITE_TRANSIENT is used to indicate that the raw data (userMode, tripId, sectionId
+        // is not permanent data and the SQLite library should make a copy
+        sqlite3_bind_double(compiledStatement, 1, md.write_ts); // timestamp
+        sqlite3_bind_text(compiledStatement, 2, [md.time_zone UTF8String], -1, SQLITE_TRANSIENT); // timezone
+        sqlite3_bind_text(compiledStatement, 3, [md.type UTF8String], -1, SQLITE_TRANSIENT); // type
+        sqlite3_bind_text(compiledStatement, 4, [md.key UTF8String], -1, SQLITE_TRANSIENT); // key
+        sqlite3_bind_text(compiledStatement, 5, [dataStr UTF8String], -1, SQLITE_TRANSIENT); // data
+        
+        
+    }
+    // Shouldn't this be within the prior if?
+    // Shouldn't we execute the compiled statement only if it was generated correctly?
+    // This is code copied from
+    // http://stackoverflow.com/questions/2184861/how-to-insert-data-into-a-sqlite-database-in-iphone
+    // Need to check from the raw sources and see where we get
+    // Create a new sqlite3 database like so:
+    // http://www.raywenderlich.com/902/sqlite-tutorial-for-ios-creating-and-scripting
+    NSInteger execCode = sqlite3_step(compiledStatement);
+    if (execCode != SQLITE_DONE) {
+        NSLog(@"Got error code %ld while executing statement %@", (long)execCode, insertStatement);
+    }
+    sqlite3_finalize(compiledStatement);
+}
+
+
 /*
  * This version supports NULL cstrings
  */
@@ -351,7 +383,7 @@ static BuiltinUserCache *_database;
 - (NSArray*) syncPhoneToServer {
     double lastTripEndTs = [self getLastTs];
     if (lastTripEndTs < 0) {
-        NSLog(@"lastTripEndTs = %f, nothing to push, returning", lastTripEndTs);
+        [LocalNotificationManager addNotification:[NSString stringWithFormat:@"lastTripEndTs = %f, nothing to push, returning", lastTripEndTs] showUI:FALSE];
         // we don't have a completed trip, we don't want to push anything yet
         return [NSArray new];
     }
@@ -373,13 +405,22 @@ static BuiltinUserCache *_database;
             md.key = [self toNSString:(char*)sqlite3_column_text(compiledStatement, 4)];
             md.plugin = [self toNSString:(char*)sqlite3_column_text(compiledStatement, 5)];
             NSDictionary* mdDict = [DataUtils wrapperToDict:md];
-            NSDictionary* dataDict = [DataUtils loadFromJSONString:[self toNSString:(char*)sqlite3_column_text(compiledStatement, 6)]];
+            NSString* dataStr = [self toNSString:(char*)sqlite3_column_text(compiledStatement, 6)];
+            NSDictionary* dataDict = [DataUtils loadFromJSONString:dataStr];
             
+            if (dataDict == NULL) {
+                // data could not be parsed as valid JSON, storing into the error database
+                [LocalNotificationManager addNotification:[NSString stringWithFormat:@"Error while converting data string %@ to JSON, skipping it", dataStr] showUI:FALSE];
+                // TODO: Re-enable once we resolve
+                // https://github.com/e-mission/cordova-usercache/issues/7
+                // [self putErrorValue:md dataStr:dataStr];
+            } else {
             NSMutableDictionary* entry = [NSMutableDictionary new];
             [entry setObject:mdDict forKey:METADATA_TAG];
             [entry setObject:dataDict forKey:DATA_TAG];
             
             [resultArray addObject:entry];
+        }
         }
     } else {
         NSLog(@"Error code %ld while compiling query %@", (long)selPrepCode, retrieveDataQuery);
