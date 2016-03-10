@@ -424,11 +424,8 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
 
         Log.d(cachedCtx, TAG, "Query is "+selectQuery);
         SQLiteDatabase db = this.getReadableDatabase();
-        Log.d(cachedCtx, TAG, "db is "+db);
         Cursor queryVal = db.rawQuery(selectQuery, null);
-        Log.d(cachedCtx, TAG, "queryVal = "+queryVal);
 
-        Log.d(cachedCtx, TAG, "moveToFirst() = "+queryVal.moveToFirst());
         int resultCount = queryVal.getCount();
         Log.d(cachedCtx, TAG, "Result count = "+resultCount);
         JSONArray entryArray = new JSONArray();
