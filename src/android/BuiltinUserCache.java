@@ -162,19 +162,21 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                 " AND ("+ KEY_TYPE + " = "+ DOCUMENT_TYPE + " OR " + KEY_TYPE + " = " + RW_DOCUMENT_TYPE + ")";
         Cursor queryVal = db.rawQuery(selectQuery, null);
         if (queryVal.moveToFirst()) {
-            long writeTs = queryVal.getLong(0);
-            long readTs = queryVal.getLong(1);
+            double writeTs = queryVal.getDouble(0);
+            double readTs = queryVal.getDouble(1);
             if (writeTs < readTs) {
                 // This has been not been updated since it was last read
                 db.close();
                 return null;
             }
             T retVal = new Gson().fromJson(queryVal.getString(0), classOfT);
+            queryVal.close();
             db.close();
             updateReadTimestamp(keyRes);
             return retVal;
         } else {
             // There is no matching entry
+            queryVal.close();
             db.close();
             return null;
         }
@@ -296,7 +298,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
      * open in case it turns out that we want to do some preprocessing of
      * sensitive trips on the phone before uploading them to the server.
      */
-    public long getTsOfLastTransition() {
+    public double getTsOfLastTransition() {
         /*
          * Find the last transition that was "stopped moving" using a direct SQL query.
          * Note that we cannot use the @see getLastMessage call here because that returns the messages
@@ -312,10 +314,14 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         Cursor resultCursor = db.rawQuery(selectQuery, null);
         Log.d(cachedCtx, TAG, "While searching for regex, got "+resultCursor.getCount()+" results");
         if (resultCursor.moveToFirst()) {
-            Log.d(cachedCtx, TAG, resultCursor.getLong(resultCursor.getColumnIndex(KEY_WRITE_TS)) + ": "+
+            double write_ts = resultCursor.getDouble(resultCursor.getColumnIndex(KEY_WRITE_TS));
+            Log.d(cachedCtx, TAG, write_ts + ": "+
                     resultCursor.getString(resultCursor.getColumnIndex(KEY_DATA)));
-            return resultCursor.getLong(resultCursor.getColumnIndex(KEY_WRITE_TS));
+            resultCursor.close();
+            db.close();
+            return write_ts;
         } else {
+            resultCursor.close();
             // There was one instance when it looked like the regex search did not work.
             // However, it turns out that it was just a logging issue.
             // Let's have a more robust fallback and see how often we need to use it.
@@ -330,7 +336,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
             if (allCursor.moveToFirst() && resultCount > 0) {
                 for (int i = 0; i < resultCount; i++) {
                     Log.d(cachedCtx, TAG, "Considering transition "+
-                            allCursor.getLong(allCursor.getColumnIndex(KEY_WRITE_TS)) + ": "+
+                            allCursor.getDouble(allCursor.getColumnIndex(KEY_WRITE_TS)) + ": "+
                             allCursor.getString(allCursor.getColumnIndex(KEY_DATA)));
                     if(allCursor.getString(allCursor.getColumnIndex(KEY_DATA))
                             .contains("\"transition\":\"local.transition.stopped_moving\"")) {
@@ -338,19 +344,25 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                         // time we have found it
                         NotificationHelper.createNotification(cachedCtx, 5, "Had to look in all!");
                         Log.w(cachedCtx, TAG, "regex did not find entry, had to search all");
-                        return allCursor.getLong(allCursor.getColumnIndex(KEY_WRITE_TS));
+                        double retVal = allCursor.getDouble(allCursor.getColumnIndex(KEY_WRITE_TS));
+                        allCursor.close();
+                        db.close();
+                        return retVal;
                     }
                     allCursor.moveToNext();
                 }
+                allCursor.close();
             } else {
                 Log.d(cachedCtx, TAG, "There are no entries in the usercache." +
                         "A sync must have just completed!");
+                allCursor.close();
             }
         }
         // Did not find a stopped_moving transition.
         // This may mean that we have pushed all completed trips.
         // Since this is supposed to return the millisecond timestamp,
         // we just return a negative number (-1)
+        db.close();
         return -1;
     }
 
@@ -358,24 +370,29 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
      * If we never duty cycle, we don't have any transitions. So we can push to the server without
      * any issues. So we just find the last entry in the cache.
      */
-    private long getTsOfLastEntry() {
+    private double getTsOfLastEntry() {
         String selectQuery = "SELECT * FROM " + TABLE_USER_CACHE +
                 " ORDER BY write_ts DESC LIMIT 1";
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor resultCursor = db.rawQuery(selectQuery, null);
         Log.d(cachedCtx, TAG, "While searching for regex, got " + resultCursor.getCount() + " results");
         if (resultCursor.moveToFirst()) {
-            Log.d(cachedCtx, TAG, resultCursor.getLong(resultCursor.getColumnIndex(KEY_WRITE_TS)) + ": " +
+            double write_ts = resultCursor.getDouble(resultCursor.getColumnIndex(KEY_WRITE_TS));
+            Log.d(cachedCtx, TAG, write_ts + ": " +
                     resultCursor.getString(resultCursor.getColumnIndex(KEY_DATA)));
-            return resultCursor.getLong(resultCursor.getColumnIndex(KEY_WRITE_TS));
+            resultCursor.close();
+            db.close();
+            return write_ts;
         } else {
             Log.d(cachedCtx, TAG, "There are no entries in the usercache." +
                     "A sync must have just completed!");
         }
+        resultCursor.close();
+        db.close();
         return -1;
     }
 
-    private long getLastTs() {
+    private double getLastTs() {
         if (LocationTrackingConfig.getConfig(cachedCtx).isDutyCycling()) {
             return getTsOfLastTransition();
         } else {
@@ -388,25 +405,32 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
      */
 
     public JSONArray sync_phone_to_server() {
-        long lastTripEndTs = getLastTs();
+        double lastTripEndTs = getLastTs();
         Log.d(cachedCtx, TAG, "Last trip end was at "+lastTripEndTs);
 
         if (lastTripEndTs < 0) {
             // We don't have a completed trip, so we don't want to push anything yet.
+            Log.i(cachedCtx,TAG, "We don't have a completed trip, so we don't want to push anything yet");
             return new JSONArray();
         }
 
+        Log.d(cachedCtx, TAG, "About to query database for data");
         String selectQuery = "SELECT * from " + TABLE_USER_CACHE +
-                " WHERE " + KEY_TYPE + " = '"+ MESSAGE_TYPE +
+                " WHERE (" + KEY_TYPE + " = '"+ MESSAGE_TYPE +
                 "' OR " + KEY_TYPE + " = '" + RW_DOCUMENT_TYPE +
-                "' OR " + KEY_TYPE + " = '" + SENSOR_DATA_TYPE + "'" +
-                " AND " + KEY_WRITE_TS + " < " + lastTripEndTs +
+                "' OR " + KEY_TYPE + " = '" + SENSOR_DATA_TYPE + "')" +
+                " AND (" + KEY_WRITE_TS + " <= " + lastTripEndTs + ")" +
                 " ORDER BY "+KEY_WRITE_TS;
 
+        Log.d(cachedCtx, TAG, "Query is "+selectQuery);
         SQLiteDatabase db = this.getReadableDatabase();
+        Log.d(cachedCtx, TAG, "db is "+db);
         Cursor queryVal = db.rawQuery(selectQuery, null);
+        Log.d(cachedCtx, TAG, "queryVal = "+queryVal);
 
+        Log.d(cachedCtx, TAG, "moveToFirst() = "+queryVal.moveToFirst());
         int resultCount = queryVal.getCount();
+        Log.d(cachedCtx, TAG, "Result count = "+resultCount);
         JSONArray entryArray = new JSONArray();
 
         // Returns fals if the cursor is empty
@@ -414,13 +438,18 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         if (queryVal.moveToFirst()) {
             for (int i = 0; i < resultCount; i++) {
                 Metadata md = new Metadata();
-                md.setWrite_ts(queryVal.getLong(0));
-                md.setRead_ts(queryVal.getLong(1));
+                md.setWrite_ts(queryVal.getDouble(0));
+                md.setRead_ts(queryVal.getDouble(1));
                 md.setTimeZone(queryVal.getString(2));
                 md.setType(queryVal.getString(3));
                 md.setKey(queryVal.getString(4));
                 md.setPlugin(queryVal.getString(5));
                 String dataStr = queryVal.getString(6);
+                if (i % 500 == 0) {
+                    Log.d(cachedCtx, TAG, "Reading entry = " + i+" with key "+md.getKey()
+                            + " and write_ts "+md.getWrite_ts());
+                }
+
                 /*
                  * I used to have a GSON wrapper here called "Entry" which encapsulated the metadata
                  * and the data. However, that didn't really work because it was unclear what type
@@ -455,12 +484,14 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                 }
             }
         }
+        queryVal.close();
         db.close();
+        Log.i(cachedCtx, TAG, "Returning array of length "+entryArray.length());
         return entryArray;
     }
 
     public void sync_server_to_phone(JSONArray entryArray) throws JSONException {
-        SQLiteDatabase db = this.getReadableDatabase();
+        SQLiteDatabase db = this.getWritableDatabase();
         Log.d(cachedCtx, TAG, "received "+entryArray.length()+" items");
         for (int i = 0; i < entryArray.length(); i++) {
             /*
