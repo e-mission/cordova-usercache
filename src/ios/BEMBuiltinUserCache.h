@@ -25,12 +25,14 @@
 // We implement the same interface as the android code, to use somewhat tested code
 - (void) putSensorData:(NSString*) label value:(NSObject*)value;
 - (void) putMessage:(NSString*) label value:(NSObject*)value;
+- (void)putReadWriteDocument:(NSString*)label value:(NSObject*)value;
 
 - (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq wrapperClass:(Class)cls;
 - (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries wrapperClass:(Class)cls;
 
 - (NSArray*) getMessageForInterval:(NSString*) key tq:(TimeQuery*)tq wrapperClass:(Class)cls;
 - (NSArray*) getLastMessage:(NSString*) key nEntries:(int)nEntries wrapperClass:(Class)cls;
+- (NSObject*) getDocument:(NSString*)key wrapperClass:(Class)cls;
 
 - (double) getTsOfLastTransition;
 - (NSArray*) syncPhoneToServer;
