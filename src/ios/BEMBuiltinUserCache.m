@@ -11,6 +11,7 @@
 #import "SimpleLocation.h"
 #import "Metadata.h"
 #import "LocationTrackingConfig.h"
+#import "ConfigManager.h"
 #import "LocalNotificationManager.h"
 
 // Table name
@@ -31,6 +32,9 @@
 
 #define SENSOR_DATA_TYPE @"sensor-data"
 #define MESSAGE_TYPE @"message"
+#define DOCUMENT_TYPE @"document"
+#define RW_DOCUMENT_TYPE @"rw-document"
+
 
 #define DB_FILE_NAME @"userCacheDB"
 
@@ -168,6 +172,10 @@ static BuiltinUserCache *_database;
 
 -(void)putMessage:(NSString *)label value:(NSObject *)value {
     [self putValue:label value:value type:MESSAGE_TYPE];
+}
+
+- (void)putReadWriteDocument:(NSString*)label value:(NSObject*)value {
+    [self putValue:label value:value type:RW_DOCUMENT_TYPE];
 }
 
 -(void)putValue:(NSString*)key value:(NSObject*)value type:(NSString*)type {
@@ -321,6 +329,28 @@ static BuiltinUserCache *_database;
     return [self getLastValues:key nEntries:nEntries type:MESSAGE_TYPE wrapperClass:cls];
 }
 
+-(NSObject*) getDocument:(NSString*)key wrapperClass:(Class)cls {
+    // Since we are ordering the results by write_ts, we expect the following behavior:
+    // - only RW_DOCUMENT -> it is returned
+    // - only DOCUMENT -> it is returned
+    // - both RW_DOCUMENT and DOCUMENT, and DOCUMENT is generated from RW_DOCUMENT -> DOCUMENT is returned
+    // since it has the later timestamp
+    // - both RW_DOCUMENT and DOCUMENT, and RW_DOCUMENT is created by cloning DOCUMENT -> RW_DOCUMENT
+    // since it has the later timestamp
+    // If any of the assumptions in the RW_DOCUMENT and DOCUMENT case are violated, we need to change this
+    // to read both values and look at their types
+    NSString* queryString = [NSString
+                             stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND (%@ = '%@' OR %@ = '%@') ORDER BY write_ts DESC LIMIT 1",
+                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, [self getStatName:key], KEY_TYPE, DOCUMENT_TYPE, KEY_TYPE, RW_DOCUMENT_TYPE];
+    NSArray *wrapperJSON = [self readSelectResults:queryString nCols:1];
+    assert((wrapperJSON.count == 0) || (wrapperJSON.count == 1));
+    if (wrapperJSON.count == 0) {
+        return NULL;
+    } else {
+        return [DataUtils stringToWrapper:wrapperJSON[0][0] wrapperClass:cls];
+    }
+}
+
 -(double)getTsOfLastTransition {
     NSString* whereClause = @" '%_transition_:_T_TRIP_ENDED_%' ORDER BY write_ts DESC LIMIT 1";
     NSString* selectQuery = [NSString stringWithFormat:@"SELECT write_ts FROM %@ WHERE %@ = '%@' AND %@ LIKE %@", TABLE_USER_CACHE, KEY_KEY,
@@ -364,7 +394,7 @@ static BuiltinUserCache *_database;
 }
 
 -(double)getLastTs {
-    if ([LocationTrackingConfig instance].isDutyCycling) {
+    if ([ConfigManager instance].is_duty_cycling) {
         return [self getTsOfLastTransition];
     } else {
         return [self getTsOfLastEntry];
@@ -388,7 +418,7 @@ static BuiltinUserCache *_database;
         return [NSArray new];
     }
     
-    NSString *retrieveDataQuery = [NSString stringWithFormat:@"SELECT * FROM %@ WHERE %@='%@' OR %@='%@' ORDER BY %@", TABLE_USER_CACHE, KEY_TYPE, MESSAGE_TYPE, KEY_TYPE, SENSOR_DATA_TYPE, KEY_WRITE_TS];
+    NSString *retrieveDataQuery = [NSString stringWithFormat:@"SELECT * FROM %@ WHERE %@='%@' OR %@='%@' OR %@='%@' ORDER BY %@", TABLE_USER_CACHE, KEY_TYPE, MESSAGE_TYPE, KEY_TYPE, SENSOR_DATA_TYPE, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_WRITE_TS];
     NSMutableArray *resultArray = [NSMutableArray new];
 
     sqlite3_stmt *compiledStatement;
@@ -506,10 +536,18 @@ static BuiltinUserCache *_database;
  */
 
 - (void)clearEntries:(TimeQuery*)tq {
-    NSLog(@"Clearing entries for timequery %@", tq);
-    NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ > %f AND %@ < %f",
-                             TABLE_USER_CACHE, tq.timeKey, tq.startTs, tq.timeKey, tq.endTs];
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"Clearing entries for timequery %@", tq] showUI:FALSE];
+    // Don't delete read-write documents just yet - they will be deleted when we get the overriden document
+    NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ > %f AND %@ < %f AND %@ != '%@')",
+                             TABLE_USER_CACHE, tq.timeKey, tq.startTs, tq.timeKey, tq.endTs, KEY_TYPE, RW_DOCUMENT_TYPE];
     [self clearQuery:deleteQuery];
+    // Also, clear all rw-documents that have been superseded by a document sent from the server
+    // DELETE FROM TABLE_USER_CACHE A JOIN TABLE_USER_CACHE B on B.KEY_KEY == A.KEY_KEY
+    // WHERE (B.KEY_TYPE == 'RW_DOCUMENT_TYPE' AND A.KEY_TYPE == 'DOCUMENT_TYPE' AND A.KEY_WRITE_TS > B.KEY_WRITE_TS)
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"clearing overridden rw-documents"] showUI:FALSE];
+    NSString* rwDocDeleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ A JOIN %@ B on B.%@ == A.%@ WHERE (B.%@ == '%@' AND A.%@ == 'B.%@' AND A.%@ < B.%@)",
+                             TABLE_USER_CACHE, TABLE_USER_CACHE, KEY_KEY, KEY_KEY, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_TYPE, DOCUMENT_TYPE, KEY_WRITE_TS, KEY_WRITE_TS];
+    [self clearQuery:rwDocDeleteQuery];
 }
 
 - (void)clear {

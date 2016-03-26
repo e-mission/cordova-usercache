@@ -17,7 +17,8 @@ import java.util.Arrays;
 import java.util.TimeZone;
 
 import edu.berkeley.eecs.emission.R;
-import edu.berkeley.eecs.emission.cordova.tracker.location.LocationTrackingConfig;
+import edu.berkeley.eecs.emission.cordova.tracker.ConfigManager;
+import edu.berkeley.eecs.emission.cordova.tracker.wrapper.LocationTrackingConfig;
 import edu.berkeley.eecs.emission.cordova.unifiedlogger.Log;
 import edu.berkeley.eecs.emission.cordova.tracker.wrapper.Metadata;
 import edu.berkeley.eecs.emission.cordova.unifiedlogger.NotificationHelper;
@@ -137,10 +138,21 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
 
     @Override
     public <T> T getDocument(int keyRes, Class<T> classOfT) {
+        // Since we are ordering the results by write_ts, we expect the following behavior:
+        // - only RW_DOCUMENT -> it is returned
+        // - only DOCUMENT -> it is returned
+        // - both RW_DOCUMENT and DOCUMENT, and DOCUMENT is generated from RW_DOCUMENT -> DOCUMENT is returned
+        // since it has the later timestamp
+        // - both RW_DOCUMENT and DOCUMENT, and RW_DOCUMENT is created by cloning DOCUMENT -> RW_DOCUMENT
+        // since it has the later timestamp
+        // If any of the assumptions in the RW_DOCUMENT and DOCUMENT case are violated, we need to change this
+        // to read both values and look at their types
+
         SQLiteDatabase db = this.getReadableDatabase();
         String selectQuery = "SELECT "+KEY_DATA+" from " + TABLE_USER_CACHE +
                 " WHERE " + KEY_KEY + " = '" + getKey(keyRes) + "'" +
-                " AND ("+ KEY_TYPE + " = '"+ DOCUMENT_TYPE + "' OR " + KEY_TYPE + " = '" + RW_DOCUMENT_TYPE + "')";
+                " AND ("+ KEY_TYPE + " = '"+ DOCUMENT_TYPE + "' OR " + KEY_TYPE + " = '" + RW_DOCUMENT_TYPE + "')"+
+                " ORDER BY "+KEY_WRITE_TS+" LIMIT 1";
         Cursor queryVal = db.rawQuery(selectQuery, null);
         if (queryVal.moveToFirst()) {
             T retVal = new Gson().fromJson(queryVal.getString(0), classOfT);
@@ -260,11 +272,23 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     @Override
     public void clearEntries(TimeQuery tq) {
         Log.d(cachedCtx, TAG, "Clearing entries for timequery " + tq);
-        String whereString = getKey(tq.keyRes) + " > ? AND " + getKey(tq.keyRes) + " < ?";
+        // This clears everything except the read-write documents
+        String whereString = getKey(tq.keyRes) + " > ? AND " + getKey(tq.keyRes) + " < ? "+
+                " AND "+KEY_TYPE+" != "+RW_DOCUMENT_TYPE;
         String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
         Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
         SQLiteDatabase db = this.getWritableDatabase();
         db.delete(TABLE_USER_CACHE, whereString, whereArgs);
+        // Then, we delete those rw-documents that have been superceded by a real document
+        // We cannot use the delete method easily because we want to join the usercache table to itself
+        // We could retrieve all rw documents and iterate through them to delete but that seems less
+        // efficient than this.
+        String rwDocDeleteQuery = "DELETE FROM " + TABLE_USER_CACHE +" A JOIN " + TABLE_USER_CACHE+" B "+
+                " on B."+KEY_KEY +" == A."+KEY_KEY +
+                " WHERE (B."+KEY_TYPE+" == '"+RW_DOCUMENT_TYPE+"' AND A."+KEY_TYPE+" == 'DOCUMENT_TYPE'"+
+                " AND A."+KEY_WRITE_TS+" > B."+KEY_WRITE_TS+")";
+        Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using "+rwDocDeleteQuery);
+        db.rawQuery(rwDocDeleteQuery, null);
         db.close();
     }
 
@@ -393,7 +417,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     }
 
     private double getLastTs() {
-        if (LocationTrackingConfig.getConfig(cachedCtx).isDutyCycling()) {
+        if (ConfigManager.getConfig(cachedCtx).isDutyCycling()) {
             return getTsOfLastTransition();
         } else {
             return getTsOfLastEntry();

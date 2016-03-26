@@ -48,7 +48,7 @@ var UserCache = {
                 " AND ("+ UserCache.KEY_TYPE + " = '" + UserCache.DOCUMENT_TYPE + "'" +
                   " OR "+ UserCache.KEY_TYPE + " = '" + UserCache.RW_DOCUMENT_TYPE+ "') "+
                   "ORDER BY "+UserCache.KEY_WRITE_TS+" DESC LIMIT 1";
-            console.log("About to execute query "+selQuery+" against userCache")
+            window.Logger.log(window.Logger.LEVEL_INFO, "About to execute query "+selQuery+" against userCache")
             tx.executeSql(selQuery,
                 [],
                 function(tx, data) {
@@ -84,7 +84,8 @@ var UserCache = {
                 " WHERE "+ UserCache.KEY_KEY + " = '" + key + "'" +
                 " AND "+ UserCache.KEY_TYPE + " = '" + type + "'" +
                 " ORDER BY "+UserCache.KEY_WRITE_TS;
-            console.log("About to execute query "+selQuery+" against userCache")
+            window.Logger.log(window.Logger.LEVEL_INFO,
+                "About to execute query "+selQuery+" against userCache")
             tx.executeSql(selQuery,
                 [],
                 function(tx, data) {
@@ -110,6 +111,56 @@ var UserCache = {
                 });
         });
     }
+    // Let's try to use promises this time, instead of using callbacks. Since
+    // we are putting a document, we don't actually need to return anything,
+    // but whatever.
+    putRWDocument: function(key, value) {
+        return UserCache.putEntries(UserCache.RW_DOCUMENT_TYPE, key, [value]);
+    },
+
+    putMessage: function(key, value) {
+        return UserCache.putEntries(UserCache.MESSAGE_TYPE, key, [value]);
+    },
+
+    putEntries: function(type, key, valueList) {
+        UserCache.db().transaction(function(tx) {
+            var selQuery = "INSERT INTO "+UserCache.TABLE_USER_CACHE+
+                    " ("+UserCache.KEY_WRITE_TS+"," + UserCache.KEY_TIMEZONE + "," +
+                    UserCache.KEY_TYPE + "," + UserCache.KEY_KEY + ","
+                    UserCache.KEY_DATA + ") VALUES (?, ?, ?, ?, ?)";
+            window.Logger.log(window.Logger.LOG_INFO,
+                "About to execute query "+selQuery+" against userCache");
+            // If we tried to execute these serially, it is unclear when
+            // all of the values have been stored because there is a
+            // callback for each of them, and we can get callbacks at
+            // various times. So when do we mark the parent promise as
+            // complete?  We can store both success and fail results in
+            // arrays and generate an event when the sum is complete, but
+            // why not just use promises directly instead?
+            var promiseList = valueList.map(function(value, index, array) {
+                var currPromise = new Promise(function(resolve, reject) {
+                    tx.executeSql(selQuery,
+                         // date in milliseconds, converted by division. Trying to
+                         // keep it consistent with native code and to get more
+                         // uniqueness for the log display.
+                        [moment().unix(),
+                         // Unsure how accurate this is - do we need a native plugin?
+                         moment.tz.guess(),
+                         type, key, value], 
+                        function(tx, data) {
+                            // We are inserting, so no expected result
+                            // Didn't fail either, so nothing to push into the
+                            // index list
+                            resolve();
+                        }, function(e) {
+                            reject({"index": index, "value": value,
+                                "error": response});
+                     }); // exec SQL
+                }); // promise
+            }); // map
+            return Promise.all(promiseList).
+        }); // transaction
+    };
 }
 
 module.exports = UserCache;
