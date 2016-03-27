@@ -110,7 +110,7 @@ var UserCache = {
                     errorCallback(response);
                 });
         });
-    }
+    },
     // Let's try to use promises this time, instead of using callbacks. Since
     // we are putting a document, we don't actually need to return anything,
     // but whatever.
@@ -158,9 +158,9 @@ var UserCache = {
                      }); // exec SQL
                 }); // promise
             }); // map
-            return Promise.all(promiseList).
+            return Promise.all(promiseList);
         }); // transaction
-    };
+    }
 }
 
 module.exports = UserCache;
