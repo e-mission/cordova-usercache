@@ -155,7 +155,9 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                 " ORDER BY "+KEY_WRITE_TS+" LIMIT 1";
         Cursor queryVal = db.rawQuery(selectQuery, null);
         if (queryVal.moveToFirst()) {
-            T retVal = new Gson().fromJson(queryVal.getString(0), classOfT);
+            String data = queryVal.getString(0);
+            System.out.println("data = "+data);
+            T retVal = new Gson().fromJson(data, classOfT);
             db.close();
             updateReadTimestamp(keyRes);
             return retVal;
@@ -252,7 +254,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         if (resultCursor.moveToFirst()) {
             for (int i = 0; i < resultCount; i++) {
                 String data = resultCursor.getString(0);
-                // System.out.println("data = "+data);
+                System.out.println("data = "+data);
                 resultArray[i] = new Gson().fromJson(data, classOfT);
                 resultCursor.moveToNext();
             }
@@ -274,7 +276,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         Log.d(cachedCtx, TAG, "Clearing entries for timequery " + tq);
         // This clears everything except the read-write documents
         String whereString = getKey(tq.keyRes) + " > ? AND " + getKey(tq.keyRes) + " < ? "+
-                " AND "+KEY_TYPE+" != "+RW_DOCUMENT_TYPE;
+                " AND "+KEY_TYPE+" != '"+RW_DOCUMENT_TYPE+"'";
         String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
         Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
         SQLiteDatabase db = this.getWritableDatabase();
@@ -283,10 +285,12 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         // We cannot use the delete method easily because we want to join the usercache table to itself
         // We could retrieve all rw documents and iterate through them to delete but that seems less
         // efficient than this.
-        String rwDocDeleteQuery = "DELETE FROM " + TABLE_USER_CACHE +" A JOIN " + TABLE_USER_CACHE+" B "+
+        String rwDocDeleteQuery = "DELETE FROM " + TABLE_USER_CACHE +" WHERE "+KEY_WRITE_TS+
+                " IN (SELECT B."+KEY_WRITE_TS+" FROM "+
+                TABLE_USER_CACHE + " A JOIN " + TABLE_USER_CACHE+" B "+
                 " on B."+KEY_KEY +" == A."+KEY_KEY +
-                " WHERE (B."+KEY_TYPE+" == '"+RW_DOCUMENT_TYPE+"' AND A."+KEY_TYPE+" == 'DOCUMENT_TYPE'"+
-                " AND A."+KEY_WRITE_TS+" > B."+KEY_WRITE_TS+")";
+                " WHERE (B."+KEY_TYPE+" == '"+RW_DOCUMENT_TYPE+"' AND A."+KEY_TYPE+" == '"+DOCUMENT_TYPE+"'"+
+                " AND A."+KEY_WRITE_TS+" > B."+KEY_WRITE_TS+"))";
         Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using "+rwDocDeleteQuery);
         db.rawQuery(rwDocDeleteQuery, null);
         db.close();

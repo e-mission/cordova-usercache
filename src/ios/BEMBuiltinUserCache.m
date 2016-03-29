@@ -542,11 +542,13 @@ static BuiltinUserCache *_database;
                              TABLE_USER_CACHE, tq.timeKey, tq.startTs, tq.timeKey, tq.endTs, KEY_TYPE, RW_DOCUMENT_TYPE];
     [self clearQuery:deleteQuery];
     // Also, clear all rw-documents that have been superseded by a document sent from the server
-    // DELETE FROM TABLE_USER_CACHE A JOIN TABLE_USER_CACHE B on B.KEY_KEY == A.KEY_KEY
-    // WHERE (B.KEY_TYPE == 'RW_DOCUMENT_TYPE' AND A.KEY_TYPE == 'DOCUMENT_TYPE' AND A.KEY_WRITE_TS > B.KEY_WRITE_TS)
+    // DELETE TABLE_USER_CACHE WHERE write_ts IN (SELECT B.write_ts FROM TABLE_USER_CACHE A JOIN TABLE_USER_CACHE B
+    // on B.KEY_KEY == A.KEY_KEY
+    // WHERE (B.KEY_TYPE == 'RW_DOCUMENT_TYPE' AND A.KEY_TYPE == 'DOCUMENT_TYPE' AND A.KEY_WRITE_TS > B.KEY_WRITE_TS))
     [LocalNotificationManager addNotification:[NSString stringWithFormat:@"clearing overridden rw-documents"] showUI:FALSE];
-    NSString* rwDocDeleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ A JOIN %@ B on B.%@ == A.%@ WHERE (B.%@ == '%@' AND A.%@ == 'B.%@' AND A.%@ < B.%@)",
-                             TABLE_USER_CACHE, TABLE_USER_CACHE, KEY_KEY, KEY_KEY, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_TYPE, DOCUMENT_TYPE, KEY_WRITE_TS, KEY_WRITE_TS];
+    NSString* rwDocDeleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ IN (SELECT B.%@ FROM %@ A JOIN %@ B on B.%@ == A.%@ WHERE (B.%@ == '%@' AND A.%@ == '%@' AND A.%@ > B.%@))",
+                             TABLE_USER_CACHE, KEY_WRITE_TS, KEY_WRITE_TS, TABLE_USER_CACHE, TABLE_USER_CACHE,
+                                  KEY_KEY, KEY_KEY, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_TYPE, DOCUMENT_TYPE, KEY_WRITE_TS, KEY_WRITE_TS];
     [self clearQuery:rwDocDeleteQuery];
 }
 
