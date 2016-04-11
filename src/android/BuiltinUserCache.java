@@ -117,7 +117,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         newValues.put(KEY_KEY, getKey(keyRes));
         newValues.put(KEY_DATA, new Gson().toJson(value));
         db.insert(TABLE_USER_CACHE, null, newValues);
-        System.out.println("Added value for key "+ cachedCtx.getString(keyRes) +
+        Log.d(cachedCtx, TAG, "Added value for key "+ cachedCtx.getString(keyRes) +
                 " at time "+newValues.getAsDouble(KEY_WRITE_TS));
         db.close();
         }
@@ -132,7 +132,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         newValues.put(KEY_KEY, md.getKey());
         newValues.put(KEY_DATA, dataStr);
         db.insert(TABLE_USER_CACHE_ERROR, null, newValues);
-        System.out.println("Added error value for key "+ md.getKey());
+        Log.d(cachedCtx, TAG, "Added error value for key "+ md.getKey());
         db.close();
     }
 
@@ -152,12 +152,14 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         String selectQuery = "SELECT "+KEY_DATA+" from " + TABLE_USER_CACHE +
                 " WHERE " + KEY_KEY + " = '" + getKey(keyRes) + "'" +
                 " AND ("+ KEY_TYPE + " = '"+ DOCUMENT_TYPE + "' OR " + KEY_TYPE + " = '" + RW_DOCUMENT_TYPE + "')"+
-                " ORDER BY "+KEY_WRITE_TS+" LIMIT 1";
+                " ORDER BY "+KEY_WRITE_TS+" DESC LIMIT 1";
         Cursor queryVal = db.rawQuery(selectQuery, null);
         if (queryVal.moveToFirst()) {
-            T retVal = new Gson().fromJson(queryVal.getString(0), classOfT);
+            String data = queryVal.getString(0);
+            System.out.println("data = "+data);
+            T retVal = new Gson().fromJson(data, classOfT);
             db.close();
-            updateReadTimestamp(keyRes);
+            // updateReadTimestamp(keyRes);
             return retVal;
         } else {
             // If there was no matching entry, return an empty list instead of null
@@ -184,7 +186,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
             T retVal = new Gson().fromJson(queryVal.getString(0), classOfT);
             queryVal.close();
             db.close();
-            updateReadTimestamp(keyRes);
+            // updateReadTimestamp(keyRes);
             return retVal;
         } else {
             // There is no matching entry
@@ -252,7 +254,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         if (resultCursor.moveToFirst()) {
             for (int i = 0; i < resultCount; i++) {
                 String data = resultCursor.getString(0);
-                // System.out.println("data = "+data);
+                System.out.println("data = "+data);
                 resultArray[i] = new Gson().fromJson(data, classOfT);
                 resultCursor.moveToNext();
             }
@@ -272,24 +274,44 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     @Override
     public void clearEntries(TimeQuery tq) {
         Log.d(cachedCtx, TAG, "Clearing entries for timequery " + tq);
-        // This clears everything except the read-write documents
-        String whereString = getKey(tq.keyRes) + " > ? AND " + getKey(tq.keyRes) + " < ? "+
-                " AND "+KEY_TYPE+" != "+RW_DOCUMENT_TYPE;
-        String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
-        Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
-        SQLiteDatabase db = this.getWritableDatabase();
-        db.delete(TABLE_USER_CACHE, whereString, whereArgs);
-        // Then, we delete those rw-documents that have been superceded by a real document
+
+        // First, we delete those rw-documents that have been superceded by a real document
         // We cannot use the delete method easily because we want to join the usercache table to itself
         // We could retrieve all rw documents and iterate through them to delete but that seems less
-        // efficient than this.
-        String rwDocDeleteQuery = "DELETE FROM " + TABLE_USER_CACHE +" A JOIN " + TABLE_USER_CACHE+" B "+
-                " on B."+KEY_KEY +" == A."+KEY_KEY +
-                " WHERE (B."+KEY_TYPE+" == '"+RW_DOCUMENT_TYPE+"' AND A."+KEY_TYPE+" == 'DOCUMENT_TYPE'"+
-                " AND A."+KEY_WRITE_TS+" > B."+KEY_WRITE_TS+")";
+        // efficient than this. Note that this needs to happen BEFORE the general clear step because
+        // otherwise, the real documents will also be deleted and so we won't detect the superceding.
+
+        // DELETE FROM TABLE_USER_CACHE WHERE write_ts IN (SELECT B.write_ts FROM TABLE_USER_CACHE A JOIN TABLE_USER_CACHE B
+        // on B.KEY_KEY == A.KEY_KEY
+        // WHERE (B.KEY_TYPE == 'RW_DOCUMENT_TYPE' AND A.KEY_TYPE == 'DOCUMENT_TYPE' AND A.KEY_WRITE_TS > B.KEY_WRITE_TS))
+
+        SQLiteDatabase db = this.getWritableDatabase();
+        String rwDocDeleteQuery = "DELETE FROM " + TABLE_USER_CACHE +" WHERE "+KEY_WRITE_TS+
+                " IN (SELECT B."+KEY_WRITE_TS+" FROM "+
+                TABLE_USER_CACHE + " A JOIN " + TABLE_USER_CACHE+" B "+
+                " on B."+KEY_KEY +" = A."+KEY_KEY +
+                " WHERE (B."+KEY_TYPE+" = '"+RW_DOCUMENT_TYPE+"' AND A."+KEY_TYPE+" = '"+DOCUMENT_TYPE+"'"+
+                " AND A."+KEY_WRITE_TS+" > B."+KEY_WRITE_TS+"))";
         Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using "+rwDocDeleteQuery);
         db.rawQuery(rwDocDeleteQuery, null);
+
+        // This clears everything except the read-write documents
+        String whereString = getKey(tq.keyRes) + " > ? AND " + getKey(tq.keyRes) + " < ? "+
+                " AND "+KEY_TYPE+" != '"+RW_DOCUMENT_TYPE+"'";
+        String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
+        Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
+        // SQLiteDatabase db = this.getWritableDatabase();
+        db.delete(TABLE_USER_CACHE, whereString, whereArgs);
         db.close();
+
+        /*
+        if (resultCount > 0) {
+            SQLiteDatabase delDB = this.getWritableDatabase();
+            String rwDocDeleteQuery = "DELETE FROM " + TABLE_USER_CACHE + " WHERE " + KEY_WRITE_TS + inString;
+            Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using " + rwDocDeleteQuery);
+            delDB.rawQuery(rwDocDeleteQuery, null);
+        }
+        */
     }
 
     /*
@@ -336,7 +358,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
 
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor resultCursor = db.rawQuery(selectQuery, null);
-        Log.d(cachedCtx, TAG, "While searching for regex, got "+resultCursor.getCount()+" results");
+        Log.d(cachedCtx, TAG, "While searching for regex of last transition, got "+resultCursor.getCount()+" results");
         if (resultCursor.moveToFirst()) {
             double write_ts = resultCursor.getDouble(resultCursor.getColumnIndex(KEY_WRITE_TS));
             Log.d(cachedCtx, TAG, write_ts + ": "+
@@ -399,7 +421,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                 " ORDER BY write_ts DESC LIMIT 1";
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor resultCursor = db.rawQuery(selectQuery, null);
-        Log.d(cachedCtx, TAG, "While searching for regex, got " + resultCursor.getCount() + " results");
+        Log.d(cachedCtx, TAG, "While searching for regex for last entry, got " + resultCursor.getCount() + " results");
         if (resultCursor.moveToFirst()) {
             double write_ts = resultCursor.getDouble(resultCursor.getColumnIndex(KEY_WRITE_TS));
             Log.d(cachedCtx, TAG, write_ts + ": " +
@@ -444,7 +466,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                 "' OR " + KEY_TYPE + " = '" + RW_DOCUMENT_TYPE +
                 "' OR " + KEY_TYPE + " = '" + SENSOR_DATA_TYPE + "')" +
                 " AND (" + KEY_WRITE_TS + " <= " + lastTripEndTs + ")" +
-                " ORDER BY "+KEY_WRITE_TS;
+                " ORDER BY "+KEY_WRITE_TS + " LIMIT 10000";
 
         Log.d(cachedCtx, TAG, "Query is "+selectQuery);
         SQLiteDatabase db = this.getReadableDatabase();
