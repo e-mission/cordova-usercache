@@ -58,7 +58,7 @@ var UserCache = {
                         resultList.push(data.rows.item(i)[UserCache.KEY_DATA]);
                     }
                     successCallback(resultList);
-                }, function(e, response) {
+                }, function(tx, response) {
                     errorCallback(response);
                 });
         });
@@ -105,9 +105,9 @@ var UserCache = {
                         resultList.push(entry);
                     }
                     successCallback(resultList);
-                }, function(e) {
-                    console.log(e);
-                    errorCallback(response);
+                }, function(tx,error) {
+                    console.log(error);
+                    errorCallback(error);
                 });
         });
     },
@@ -123,43 +123,52 @@ var UserCache = {
     },
 
     putEntries: function(type, key, valueList) {
-        UserCache.db().transaction(function(tx) {
-            var selQuery = "INSERT INTO "+UserCache.TABLE_USER_CACHE+
-                    " ("+UserCache.KEY_WRITE_TS+"," + UserCache.KEY_TIMEZONE + "," +
-                    UserCache.KEY_TYPE + "," + UserCache.KEY_KEY + ","
-                    UserCache.KEY_DATA + ") VALUES (?, ?, ?, ?, ?)";
-            window.Logger.log(window.Logger.LOG_INFO,
-                "About to execute query "+selQuery+" against userCache");
-            // If we tried to execute these serially, it is unclear when
-            // all of the values have been stored because there is a
-            // callback for each of them, and we can get callbacks at
-            // various times. So when do we mark the parent promise as
-            // complete?  We can store both success and fail results in
-            // arrays and generate an event when the sum is complete, but
-            // why not just use promises directly instead?
-            var promiseList = valueList.map(function(value, index, array) {
-                var currPromise = new Promise(function(resolve, reject) {
-                    tx.executeSql(selQuery,
-                         // date in milliseconds, converted by division. Trying to
-                         // keep it consistent with native code and to get more
-                         // uniqueness for the log display.
-                        [moment().unix(),
-                         // Unsure how accurate this is - do we need a native plugin?
-                         moment.tz.guess(),
-                         type, key, value], 
-                        function(tx, data) {
-                            // We are inserting, so no expected result
-                            // Didn't fail either, so nothing to push into the
-                            // index list
-                            resolve();
-                        }, function(e) {
-                            reject({"index": index, "value": value,
-                                "error": response});
-                     }); // exec SQL
-                }); // promise
-            }); // map
-            return Promise.all(promiseList);
-        }); // transaction
+        // We need a new top level promise because UserCache.db().transaction is async!!
+        return new Promise(function(resolve, reject) {
+            UserCache.db().transaction(function(tx) {
+                var selQuery = "INSERT INTO "+UserCache.TABLE_USER_CACHE+
+                        " ("+UserCache.KEY_WRITE_TS+"," + UserCache.KEY_TIMEZONE + "," +
+                        UserCache.KEY_TYPE + "," + UserCache.KEY_KEY + "," +
+                        UserCache.KEY_DATA + ") VALUES (?, ?, ?, ?, ?)";
+                window.Logger.log(window.Logger.LOG_INFO,
+                    "About to execute query "+selQuery+" against userCache");
+                // If we tried to execute these serially, it is unclear when
+                // all of the values have been stored because there is a
+                // callback for each of them, and we can get callbacks at
+                // various times. So when do we mark the parent promise as
+                // complete?  We can store both success and fail results in
+                // arrays and generate an event when the sum is complete, but
+                // why not just use promises directly instead?
+                var promiseList = valueList.map(function(value, index, array) {
+                    var currPromise = new Promise(function(resolve, reject) {
+                        var currArgs = [moment().unix(),
+                             // Unsure how accurate this is - do we need a native plugin?
+                             moment.tz.guess(),
+                             type, key, value];
+                        window.Logger.log(window.Logger.LOG_INFO,
+                            "About to use args = "+currArgs);
+                        tx.executeSql(selQuery,
+                             // date in milliseconds, converted by division. Trying to
+                             // keep it consistent with native code and to get more
+                             // uniqueness for the log display.
+                            currArgs, 
+                            function(tx, data) {
+                                // We are inserting, so no expected result
+                                // Didn't fail either, so nothing to push into the
+                                // index list
+                                resolve({"index": index, "value": value, "data": data});
+                            }, function(tx, error) {
+                                window.Logger.log(window.Logger.LOG_ERROR,
+                                   "error = "+error);
+                                reject({"index": index, "value": value,
+                                    "error": error});
+                         }); // exec SQL
+                    }); // promise
+                    return currPromise;
+                }); // map
+                resolve(Promise.all(promiseList));
+            }); // transaction
+        });
     }
 }
 

@@ -16,6 +16,8 @@
     <string>config/sensor_config</string>
     <key>key.usercache.sync_config</key>
     <string>config/sync_config</string>
+    <key>key.usercache.consent_config</key>
+    <string>config/consent</string>
 	<key>key.usercache.transition</key>
 	<string>statemachine/transition</string>
 	<key>metadata.usercache.write_ts</key>
