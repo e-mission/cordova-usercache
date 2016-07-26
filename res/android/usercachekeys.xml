@@ -7,6 +7,7 @@
     <string name="key.usercache.battery">background/battery</string>
     <string name="key.usercache.sensor_config">config/sensor_config</string>
     <string name="key.usercache.sync_config">config/sync_config</string>
+    <string name="key.usercache.consent_config">config/consent</string>
     <string name="key.usercache.transition">statemachine/transition</string>
     <string name="metadata.usercache.write_ts">write_ts</string>
 </resources>
