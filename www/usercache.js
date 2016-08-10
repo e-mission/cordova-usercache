@@ -36,8 +36,9 @@ var UserCache = {
         return UserCache.dbHandle;
     },
 
-    getDocument: function(key, successCallback, errorCallback) {
-        UserCache.db().readTransaction(function(tx) {
+    getDocument: function(key) {
+        return new Promise (function(resolve, reject){
+            UserCache.db().readTransaction(function(tx) {
             /*
              * We can have multiple entries for a particular key as the document associated with the key
              * is updated throughout the day. We should really override as part of the sync. But for now,
@@ -57,10 +58,11 @@ var UserCache = {
                     for (i = 0; i < data.rows.length; i++) {
                         resultList.push(data.rows.item(i)[UserCache.KEY_DATA]);
                     }
-                    successCallback(resultList);
+                    resolve(resultList);
                 }, function(tx, response) {
-                    errorCallback(response);
+                    reject(response);
                 });
+            });
         });
     },
 
