@@ -620,5 +620,21 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         db.close();
     }
 
+
+    /*
+     * TODO: This should probably be moved into the usercache somehow
+     */
+    public static UserCache.TimeQuery getTimeQuery(Context cachedContext, JSONArray pointList) throws JSONException {
+        long start_ts = pointList.getJSONObject(0).getJSONObject("metadata").getLong("write_ts");
+        long end_ts = pointList.getJSONObject(pointList.length() - 1).getJSONObject("metadata").getLong("write_ts");
+        // This might still have a race in which there are new entries added with the same timestamp as the last
+        // entry. Use an id instead? Or manually choose a slightly earlier ts to be on the safe side?
+        // TODO: Need to figure out which one to do
+        // Start slightly before and end slightly after to make sure that we get all entries
+        UserCache.TimeQuery tq = new UserCache.TimeQuery(cachedContext.getString(R.string.metadata_usercache_write_ts),
+                start_ts - 1, end_ts + 1);
+        return tq;
+    }
+
     // END: Methods invoked for syncing the data to the host. Not part of the interface.
 }
