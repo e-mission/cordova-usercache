@@ -102,7 +102,11 @@ static BuiltinUserCache *_database;
  * While this does not provide a compile time check, it at least provides a run time check. Let's stick with that for now.
  */
 - (NSString*)getStatName:(NSString*)label {
-    return [statsNamesDict objectForKey:label];
+    NSString* statName = [statsNamesDict objectForKey:label];
+    if (statName == NULL) {
+        [NSException raise:@"unknown stat" format:@"stat %@ not defined in app_stats plist", label];
+    }
+    return statName;
 }
 
 - (NSString*)dbPath:(NSString*)dbName {
@@ -166,24 +170,41 @@ static BuiltinUserCache *_database;
     return entry;
 }
 
+// These are the versions intended to be used with native code
+// The label is an entry into the plist, and the value is a wrapper class
+
 -(void)putSensorData:(NSString *)label value:(NSObject *)value {
-    [self putValue:label value:value type:SENSOR_DATA_TYPE];
+    NSString* statName = [self getStatName:label];
+    [self putValue:statName value:[DataUtils wrapperToString:value] type:SENSOR_DATA_TYPE];
 }
 
 -(void)putMessage:(NSString *)label value:(NSObject *)value {
-    [self putValue:label value:value type:MESSAGE_TYPE];
+    NSString* statName = [self getStatName:label];
+    [self putValue:statName value:[DataUtils wrapperToString:value] type:MESSAGE_TYPE];
 }
 
 - (void)putReadWriteDocument:(NSString*)label value:(NSObject*)value {
-    [self putValue:label value:value type:RW_DOCUMENT_TYPE];
+    NSString* statName = [self getStatName:label];
+    [self putValue:statName value:[DataUtils wrapperToString:value] type:RW_DOCUMENT_TYPE];
 }
 
--(void)putValue:(NSString*)key value:(NSObject*)value type:(NSString*)type {
-    NSString* statName = [self getStatName:key];
-    double currTimeSecs = [BuiltinUserCache getCurrentTimeSecs];
-    if (statName == NULL) {
-        [NSException raise:@"unknown stat" format:@"stat %@ not defined in app_stats plist", key];
+// These are the versions intended to be used with the plugin
+// The label is directly a string, and the value is a JSON object
+
+-(void)putSensorData:(NSString *)label jsonValue:(NSDictionary *)value {
+    [self putValue:label value:[DataUtils saveToJSONString:value] type:SENSOR_DATA_TYPE];
+}
+
+-(void)putMessage:(NSString *)label jsonValue:(NSDictionary *)value {
+    [self putValue:label value:[DataUtils saveToJSONString:value] type:MESSAGE_TYPE];
+}
+
+- (void)putReadWriteDocument:(NSString*)label jsonValue:(NSDictionary *)value {
+    [self putValue:label value:[DataUtils saveToJSONString:value] type:RW_DOCUMENT_TYPE];
     }
+    
+-(void)putValue:(NSString*)key value:(NSString*)value type:(NSString*)type {
+    double currTimeSecs = [BuiltinUserCache getCurrentTimeSecs];
     
     NSString *insertStatement = [NSString stringWithFormat:@"INSERT INTO %@ (%@, %@, %@, %@, %@) VALUES (?, ?, ?, ?, ?)",
                                  TABLE_USER_CACHE, KEY_WRITE_TS, KEY_TIMEZONE, KEY_TYPE, KEY_KEY, KEY_DATA];
@@ -194,8 +215,8 @@ static BuiltinUserCache *_database;
         sqlite3_bind_double(compiledStatement, 1, currTimeSecs); // timestamp
         sqlite3_bind_text(compiledStatement, 2, [[NSTimeZone localTimeZone].name UTF8String], -1, SQLITE_TRANSIENT); // timezone
         sqlite3_bind_text(compiledStatement, 3, [type UTF8String], -1, SQLITE_TRANSIENT); // type
-        sqlite3_bind_text(compiledStatement, 4, [statName UTF8String], -1, SQLITE_TRANSIENT); // key
-        sqlite3_bind_text(compiledStatement, 5, [[DataUtils wrapperToString:value] UTF8String], -1, SQLITE_TRANSIENT); // data
+        sqlite3_bind_text(compiledStatement, 4, [key UTF8String], -1, SQLITE_TRANSIENT); // key
+        sqlite3_bind_text(compiledStatement, 5, [value UTF8String], -1, SQLITE_TRANSIENT); // data
 
 
     }
@@ -278,55 +299,84 @@ static BuiltinUserCache *_database;
     return retVal;
 }
 
-- (NSArray*) getValuesForInterval:(NSString*) key tq:(TimeQuery*)tq type:(NSString*)type wrapperClass:(Class)cls {
-    /*
-     * Note: the first getKey(keyRes) is the key of the message (e.g. 'background/location').
-     * The second getKey(tq.keyRes) is the key of the time query (e.g. 'write_ts')
-     */
-    NSMutableArray* retWrapperArr = [NSMutableArray new];
+- (NSArray*) getValuesForInterval:(NSString*) key tq:(TimeQuery*)tq type:(NSString*)type
+{
     NSString* queryString = [NSString
                              stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND %@ >= %f AND %@ <= %f ORDER BY write_ts DESC",
-                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, [self getStatName:key],
-                             [self getStatName:tq.timeKey], tq.startTs, [self getStatName:tq.timeKey], tq.endTs];
+                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, key,
+                             tq.timeKey, tq.startTs, tq.timeKey, tq.endTs];
     NSArray *wrapperJSON = [self readSelectResults:queryString nCols:1];
-    for (int i = 0; i < wrapperJSON.count; i++) {
+    return wrapperJSON;
+}
+
+- (NSArray*) wrapClass:(NSArray*) jsonStringArr wrapperClass:(__unsafe_unretained Class)cls
+{
+    NSMutableArray* retWrapperArr = [NSMutableArray new];
+    for (int i = 0; i < jsonStringArr.count; i++) {
         // Because we passed in nCols = 1, there will be a single value in each array row
-        [retWrapperArr addObject:[DataUtils stringToWrapper:wrapperJSON[i][0] wrapperClass:cls]];
+        [retWrapperArr addObject:[DataUtils stringToWrapper:jsonStringArr[i][0] wrapperClass:cls]];
     }
     return retWrapperArr;
 }
 
-- (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq wrapperClass:(__unsafe_unretained Class)cls {
-    return [self getValuesForInterval:key tq:tq type:SENSOR_DATA_TYPE wrapperClass:cls];
+- (NSArray*) wrapJSON:(NSArray*) jsonStringArr
+{
+    NSMutableArray* retWrapperArr = [NSMutableArray new];
+    for (int i = 0; i < jsonStringArr.count; i++) {
+        // Because we passed in nCols = 1, there will be a single value in each array row
+        [retWrapperArr addObject:[DataUtils loadFromJSONString:jsonStringArr[i][0]]];
+    }
+    return retWrapperArr;
+}
+
+// These are the versions intended to be used with native code
+// The label is an entry into the plist, and the value is a wrapper class
+
+- (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq wrapperClass:(__unsafe_unretained Class)cls
+{
+    return [self wrapClass:[self getValuesForInterval:[self getStatName:key] tq:tq type:SENSOR_DATA_TYPE] wrapperClass:cls];
 }
 
 - (NSArray*) getMessageForInterval:(NSString*) key tq:(TimeQuery*)tq wrapperClass:(__unsafe_unretained Class)cls {
-    return [self getValuesForInterval:key tq:tq type:MESSAGE_TYPE wrapperClass:cls];
+    return [self wrapClass:[self getValuesForInterval:[self getStatName:key] tq:tq type:MESSAGE_TYPE] wrapperClass:cls];
 }
 
-- (NSArray*) getLastValues:(NSString*) key nEntries:(int)nEntries type:(NSString*)type wrapperClass:(Class)cls {
+- (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq
+{
+    return [self wrapJSON:[self getValuesForInterval:key tq:tq type:SENSOR_DATA_TYPE]];
+}
+
+- (NSArray*) getMessageForInterval:(NSString*) key tq:(TimeQuery*)tq {
+    return [self wrapJSON:[self getValuesForInterval:key tq:tq type:MESSAGE_TYPE]];
+}
+
+
+- (NSArray*) getLastValues:(NSString*) key nEntries:(int)nEntries type:(NSString*)type {
     /*
      * Note: the first getKey(keyRes) is the key of the message (e.g. 'background/location').
      * The second getKey(tq.keyRes) is the key of the time query (e.g. 'write_ts')
      */
-    NSMutableArray* retWrapperArr = [NSMutableArray new];
     NSString* queryString = [NSString
                              stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND %@ = '%@' ORDER BY write_ts DESC LIMIT %d",
-                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, [self getStatName:key], KEY_TYPE, type, nEntries];
+                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, key, KEY_TYPE, type, nEntries];
     NSArray *wrapperJSON = [self readSelectResults:queryString nCols:1];
-    for (int i = 0; i < wrapperJSON.count; i++) {
-        // Because we passed in nCols = 1, there will be a single value in each array row
-        [retWrapperArr addObject:[DataUtils stringToWrapper:wrapperJSON[i][0] wrapperClass:cls]];
-    }
-    return retWrapperArr;
+    return wrapperJSON;
 }
 
 - (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries wrapperClass:(Class)cls {
-    return [self getLastValues:key nEntries:nEntries type:SENSOR_DATA_TYPE wrapperClass:cls];
+    return [self wrapClass:[self getLastValues:[self getStatName:key] nEntries:nEntries type:SENSOR_DATA_TYPE] wrapperClass:cls];
 }
 
 - (NSArray*) getLastMessage:(NSString*)key nEntries:(int)nEntries wrapperClass:(Class)cls {
-    return [self getLastValues:key nEntries:nEntries type:MESSAGE_TYPE wrapperClass:cls];
+    return [self wrapClass:[self getLastValues:[self getStatName:key] nEntries:nEntries type:MESSAGE_TYPE] wrapperClass:cls];
+}
+
+- (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries {
+    return [self wrapJSON:[self getLastValues:[self getStatName:key] nEntries:nEntries type:SENSOR_DATA_TYPE]];
+}
+
+- (NSArray*) getLastMessage:(NSString*)key nEntries:(int)nEntries {
+    return [self wrapJSON:[self getLastValues:[self getStatName:key] nEntries:nEntries type:MESSAGE_TYPE]];
 }
 
 -(NSObject*) getDocument:(NSString*)key wrapperClass:(Class)cls {
@@ -348,6 +398,28 @@ static BuiltinUserCache *_database;
         return NULL;
     } else {
         return [DataUtils stringToWrapper:wrapperJSON[0][0] wrapperClass:cls];
+    }
+}
+
+-(NSDictionary*) getDocument:(NSString*)key {
+    // Since we are ordering the results by write_ts, we expect the following behavior:
+    // - only RW_DOCUMENT -> it is returned
+    // - only DOCUMENT -> it is returned
+    // - both RW_DOCUMENT and DOCUMENT, and DOCUMENT is generated from RW_DOCUMENT -> DOCUMENT is returned
+    // since it has the later timestamp
+    // - both RW_DOCUMENT and DOCUMENT, and RW_DOCUMENT is created by cloning DOCUMENT -> RW_DOCUMENT
+    // since it has the later timestamp
+    // If any of the assumptions in the RW_DOCUMENT and DOCUMENT case are violated, we need to change this
+    // to read both values and look at their types
+    NSString* queryString = [NSString
+                             stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND (%@ = '%@' OR %@ = '%@') ORDER BY write_ts DESC LIMIT 1",
+                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, [self getStatName:key], KEY_TYPE, DOCUMENT_TYPE, KEY_TYPE, RW_DOCUMENT_TYPE];
+    NSArray *wrapperJSON = [self readSelectResults:queryString nCols:1];
+    assert((wrapperJSON.count == 0) || (wrapperJSON.count == 1));
+    if (wrapperJSON.count == 0) {
+        return NULL;
+    } else {
+        return [DataUtils loadFromJSONString:wrapperJSON[0][0]];
     }
 }
 
@@ -388,7 +460,7 @@ static BuiltinUserCache *_database;
             return -1;
         }
     } else {
-        NSLog(@"Error %ld while compiling query %@", selPrepCode, selectQuery);
+        NSLog(@"Error %ld while compiling query %@", (long)selPrepCode, selectQuery);
         return -1;
     }
 }
@@ -551,6 +623,14 @@ static BuiltinUserCache *_database;
     // Don't delete read-write documents just yet - they will be deleted when we get the overriden document
     NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ > %f AND %@ < %f AND %@ != '%@')",
                              TABLE_USER_CACHE, tq.timeKey, tq.startTs, tq.timeKey, tq.endTs, KEY_TYPE, RW_DOCUMENT_TYPE];
+    [self clearQuery:deleteQuery];
+}
+
+- (void)invalidateCache:(TimeQuery *)tq
+{
+    // Invalidate the cache, i.e. entries of type DOCUMENT
+    NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ > %f AND %@ < %f AND %@ == '%@')",
+                             TABLE_USER_CACHE, tq.timeKey, tq.startTs, tq.timeKey, tq.endTs, KEY_TYPE, DOCUMENT_TYPE];
     [self clearQuery:deleteQuery];
 }
 

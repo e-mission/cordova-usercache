@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -18,7 +19,6 @@ import java.util.TimeZone;
 
 import edu.berkeley.eecs.emission.R;
 import edu.berkeley.eecs.emission.cordova.tracker.ConfigManager;
-import edu.berkeley.eecs.emission.cordova.tracker.wrapper.LocationTrackingConfig;
 import edu.berkeley.eecs.emission.cordova.unifiedlogger.Log;
 import edu.berkeley.eecs.emission.cordova.tracker.wrapper.Metadata;
 import edu.berkeley.eecs.emission.cordova.unifiedlogger.NotificationHelper;
@@ -94,30 +94,45 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
 
     @Override
     public void putSensorData(int keyRes, Object value) {
-        putValue(keyRes, value, SENSOR_DATA_TYPE);
+        putValue(getKey(keyRes), new Gson().toJson(value), SENSOR_DATA_TYPE);
     }
 
     @Override
     public void putMessage(int keyRes, Object value) {
-        putValue(keyRes, value, MESSAGE_TYPE);
+        putValue(getKey(keyRes), new Gson().toJson(value), MESSAGE_TYPE);
     }
 
     @Override
     public void putReadWriteDocument(int keyRes, Object value) {
-        putValue(keyRes, value, RW_DOCUMENT_TYPE);
+        putValue(getKey(keyRes), new Gson().toJson(value), RW_DOCUMENT_TYPE);
     }
 
-    private void putValue(int keyRes, Object value, String type) {
+    @Override
+    public void putSensorData(String key, JSONObject value) {
+        putValue(key, value.toString(), SENSOR_DATA_TYPE);
+    }
+
+    @Override
+    public void putMessage(String key, JSONObject value) {
+        putValue(key, value.toString(), MESSAGE_TYPE);
+    }
+
+    @Override
+    public void putReadWriteDocument(String key, JSONObject value) {
+        putValue(key, value.toString(), RW_DOCUMENT_TYPE);
+    }
+
+    private void putValue(String key, String value, String type) {
         SQLiteDatabase db = this.getWritableDatabase();
 
         ContentValues newValues = new ContentValues();
         newValues.put(KEY_WRITE_TS, ((double)System.currentTimeMillis()/1000));
         newValues.put(KEY_TIMEZONE, TimeZone.getDefault().getID());
         newValues.put(KEY_TYPE, type);
-        newValues.put(KEY_KEY, getKey(keyRes));
+        newValues.put(KEY_KEY, key);
         newValues.put(KEY_DATA, new Gson().toJson(value));
         db.insert(TABLE_USER_CACHE, null, newValues);
-        Log.d(cachedCtx, TAG, "Added value for key "+ cachedCtx.getString(keyRes) +
+        Log.d(cachedCtx, TAG, "Added value for key " + key +
                 " at time "+newValues.getAsDouble(KEY_WRITE_TS));
         db.close();
         }
@@ -138,6 +153,25 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
 
     @Override
     public <T> T getDocument(int keyRes, Class<T> classOfT) {
+        String key = getKey(keyRes);
+        String docString = getDocumentString(key);
+        if (docString != null) {
+            T retVal = new Gson().fromJson(docString, classOfT);
+            return retVal;
+        }
+        return null;
+    }
+
+    @Override
+    public JSONObject getDocument(String key) throws JSONException {
+        String docString = getDocumentString(key);
+        if (docString != null) {
+            return new JSONObject(docString);
+        }
+        return null;
+    }
+
+    private String getDocumentString(String key) {
         // Since we are ordering the results by write_ts, we expect the following behavior:
         // - only RW_DOCUMENT -> it is returned
         // - only DOCUMENT -> it is returned
@@ -150,123 +184,135 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
 
         SQLiteDatabase db = this.getReadableDatabase();
         String selectQuery = "SELECT "+KEY_DATA+" from " + TABLE_USER_CACHE +
-                " WHERE " + KEY_KEY + " = '" + getKey(keyRes) + "'" +
+                " WHERE " + KEY_KEY + " = '" + key + "'" +
                 " AND ("+ KEY_TYPE + " = '"+ DOCUMENT_TYPE + "' OR " + KEY_TYPE + " = '" + RW_DOCUMENT_TYPE + "')"+
                 " ORDER BY "+KEY_WRITE_TS+" DESC LIMIT 1";
+        try {
         Cursor queryVal = db.rawQuery(selectQuery, null);
         if (queryVal.moveToFirst()) {
             String data = queryVal.getString(0);
             System.out.println("data = "+data);
-            T retVal = new Gson().fromJson(data, classOfT);
+                String retVal = data;
             db.close();
-            // updateReadTimestamp(keyRes);
+                // updateReadTimestamp(key);
             return retVal;
         } else {
             // If there was no matching entry, return an empty list instead of null
             db.close();
             return null;
         }
+        } finally {
+            db.close();
+        }
     }
 
-    @Override
-    public <T> T getUpdatedDocument(int keyRes, Class<T> classOfT) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        String selectQuery = "SELECT "+KEY_WRITE_TS+", "+KEY_READ_TS+", "+KEY_DATA+" from " + TABLE_USER_CACHE +
-                "WHERE " + KEY_KEY + " = " + getKey(keyRes) +
-                " AND ("+ KEY_TYPE + " = "+ DOCUMENT_TYPE + " OR " + KEY_TYPE + " = " + RW_DOCUMENT_TYPE + ")";
-        Cursor queryVal = db.rawQuery(selectQuery, null);
-        if (queryVal.moveToFirst()) {
-            double writeTs = queryVal.getDouble(0);
-            double readTs = queryVal.getDouble(1);
-            if (writeTs < readTs) {
-                // This has been not been updated since it was last read
-                db.close();
-                return null;
+    private <T> T[] wrapGson(String[] stringObjects, Class<T> classOfT) {
+        T[] resultArray = (T[]) Array.newInstance(classOfT, stringObjects.length);
+        for (int i=0; i < stringObjects.length; i++) {
+            resultArray[i] = new Gson().fromJson(stringObjects[i], classOfT);
             }
-            T retVal = new Gson().fromJson(queryVal.getString(0), classOfT);
-            queryVal.close();
-            db.close();
-            // updateReadTimestamp(keyRes);
-            return retVal;
-        } else {
-            // There is no matching entry
-            queryVal.close();
-            db.close();
-            return null;
+        return resultArray;
         }
+
+    private JSONArray wrapJson(String[] stringObjects) throws JSONException {
+        JSONArray resultArray = new JSONArray();
+        for (int i=0; i < stringObjects.length; i++) {
+            resultArray.put(new JSONObject(stringObjects[i]));
+        }
+        return resultArray;
     }
 
     @Override
     public <T> T[] getMessagesForInterval(int keyRes, TimeQuery tq, Class<T> classOfT) {
-        return getValuesForInterval(keyRes, MESSAGE_TYPE, tq, classOfT);
+        return wrapGson(getValuesForInterval(getKey(keyRes), MESSAGE_TYPE, tq), classOfT);
     }
 
     @Override
     public <T> T[] getSensorDataForInterval(int keyRes, TimeQuery tq, Class<T> classOfT) {
-        return getValuesForInterval(keyRes, SENSOR_DATA_TYPE, tq, classOfT);
+        return wrapGson(getValuesForInterval(getKey(keyRes), SENSOR_DATA_TYPE, tq), classOfT);
     }
 
-    public <T> T[] getValuesForInterval(int keyRes, String type, TimeQuery tq, Class<T> classOfT) {
+    @Override
+    public JSONArray getMessagesForInterval(String key, TimeQuery tq) throws JSONException {
+        return wrapJson(getValuesForInterval(key, MESSAGE_TYPE, tq));
+    }
+
+    @Override
+    public JSONArray getSensorDataForInterval(String key, TimeQuery tq) throws JSONException {
+        return wrapJson(getValuesForInterval(key, SENSOR_DATA_TYPE, tq));
+    }
+
+    public String[] getValuesForInterval(String key, String type, TimeQuery tq){
         /*
-         * Note: the first getKey(keyRes) is the key of the message (e.g. 'background/location').
-         * The second getKey(tq.keyRes) is the key of the time query (e.g. 'write_ts')
+         * Note: the first getKey(key) is the key of the message (e.g. 'background/location').
+         * The second getKey(tq.key) is the key of the time query (e.g. 'write_ts')
          */
         String queryString = "SELECT "+KEY_DATA+" FROM "+TABLE_USER_CACHE+
-                " WHERE "+KEY_KEY+" = '"+getKey(keyRes)+ "'"+
-                " AND "+getKey(tq.keyRes)+" >= "+tq.startTs+
-                " AND "+getKey(tq.keyRes)+" <= "+tq.endTs+
+                " WHERE "+KEY_KEY+" = '"+ key + "'"+
+                " AND "+KEY_TYPE+" = '" + type + "'" +
+                " AND "+ tq.key +" >= "+tq.startTs+
+                " AND "+ tq.key +" <= "+tq.endTs+
                 " ORDER BY write_ts DESC";
         System.out.println("About to execute query "+queryString);
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor resultCursor = db.rawQuery(queryString, null);
 
-        T[] result = getValuesFromCursor(resultCursor, classOfT);
+        String[] result = getValuesFromCursor(resultCursor);
         db.close();
         return result;
     }
 
     @Override
-    public <T> T[] getLastMessages(int keyRes, int nEntries, Class<T> classOfT) {
-        return getLastValues(keyRes, MESSAGE_TYPE, nEntries, classOfT);
+    public <T> T[] getLastMessages(int key, int nEntries, Class<T> classOfT) {
+        return wrapGson(getLastValues(getKey(key), MESSAGE_TYPE, nEntries), classOfT);
     }
 
     @Override
-    public <T> T[] getLastSensorData(int keyRes, int nEntries, Class<T> classOfT) {
-        return getLastValues(keyRes, SENSOR_DATA_TYPE, nEntries, classOfT);
+    public <T> T[] getLastSensorData(int key, int nEntries, Class<T> classOfT) {
+        return wrapGson(getLastValues(getKey(key), SENSOR_DATA_TYPE, nEntries), classOfT);
     }
 
-    public <T> T[] getLastValues(int keyRes, String type, int nEntries, Class<T> classOfT) {
+    public JSONArray getLastMessages(String key, int nEntries) throws JSONException {
+        return wrapJson(getLastValues(key, MESSAGE_TYPE, nEntries));
+    }
+
+    public JSONArray getLastSensorData(String key, int nEntries) throws JSONException {
+        return wrapJson(getLastValues(key, SENSOR_DATA_TYPE, nEntries));
+    }
+
+    public String[] getLastValues(String key, String type, int nEntries) {
         String queryString = "SELECT "+KEY_DATA+" FROM "+TABLE_USER_CACHE+
-                " WHERE "+KEY_KEY+" = '"+getKey(keyRes)+ "'"+
+                " WHERE "+KEY_KEY+" = '"+ key + "'"+
+                " AND "+KEY_TYPE+" = '" + type + "'" +
                 " ORDER BY write_ts DESC  LIMIT "+nEntries;
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor resultCursor = db.rawQuery(queryString, null);
 
-        T[] result = getValuesFromCursor(resultCursor, classOfT);
+        String[] valueList = getValuesFromCursor(resultCursor);
         db.close();
-        return result;
+        return valueList;
     }
 
-    private <T> T[] getValuesFromCursor(Cursor resultCursor, Class<T> classOfT) {
+    private String[] getValuesFromCursor(Cursor resultCursor) {
         int resultCount = resultCursor.getCount();
-        T[] resultArray = (T[]) Array.newInstance(classOfT, resultCount);
+        String[] resultArray = new String[resultCount];
         // System.out.println("resultArray is " + resultArray);
         if (resultCursor.moveToFirst()) {
             for (int i = 0; i < resultCount; i++) {
                 String data = resultCursor.getString(0);
-                System.out.println("data = "+data);
-                resultArray[i] = new Gson().fromJson(data, classOfT);
+                // System.out.println("data = "+data);
+                resultArray[i] = data;
                 resultCursor.moveToNext();
             }
         }
         return resultArray;
     }
 
-    private void updateReadTimestamp(int keyRes) {
+    private void updateReadTimestamp(String key) {
         SQLiteDatabase writeDb = this.getWritableDatabase();
         ContentValues updateValues = new ContentValues();
         updateValues.put(KEY_READ_TS, ((double)System.currentTimeMillis())/1000);
-        updateValues.put(KEY_KEY, getKey(keyRes));
+        updateValues.put(KEY_KEY, key);
         writeDb.update(TABLE_USER_CACHE, updateValues, null, null);
         writeDb.close();
     }
@@ -296,7 +342,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         db.rawQuery(rwDocDeleteQuery, null);
 
         // This clears everything except the read-write documents
-        String whereString = getKey(tq.keyRes) + " > ? AND " + getKey(tq.keyRes) + " < ? "+
+        String whereString = tq.key + " > ? AND " + tq.key + " < ? "+
                 " AND "+KEY_TYPE+" != '"+RW_DOCUMENT_TYPE+"'";
         String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
         Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
@@ -312,6 +358,21 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
             delDB.rawQuery(rwDocDeleteQuery, null);
         }
         */
+    }
+
+    @Override
+    public void invalidateCache(TimeQuery tq) {
+        Log.d(cachedCtx, TAG, "Clearing entries for timequery " + tq);
+
+        SQLiteDatabase db = this.getWritableDatabase();
+        // This clears everything except the read-write documents
+        String whereString = tq.key + " > ? AND " + tq.key + " < ? "+
+                " AND "+KEY_TYPE+" == '"+DOCUMENT_TYPE+"'";
+        String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
+        Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
+        // SQLiteDatabase db = this.getWritableDatabase();
+        db.delete(TABLE_USER_CACHE, whereString, whereArgs);
+        db.close();
     }
 
     /*
@@ -350,7 +411,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
          * Note that we cannot use the @see getLastMessage call here because that returns the messages
          * (the transition strings in this case) but not the metadata.
          */
-
         String selectQuery = "SELECT * FROM "+TABLE_USER_CACHE+
                 " WHERE "+KEY_KEY+" = '"+getKey(R.string.key_usercache_transition)+ "'"+
                 " AND "+KEY_DATA+" LIKE '%_transition_:_" + cachedCtx.getString(R.string.transition_stopped_moving) +"_%'"+
