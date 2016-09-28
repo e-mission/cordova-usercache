@@ -90,7 +90,9 @@ public interface UserCache {
          * and returned.
          */
     public abstract <T> T getDocument(int key, Class<T> classOfT);
-    public abstract JSONObject getDocument(String key) throws JSONException;
+    // Can be either JSONObject or JSONArray, and they don't have a common superclass other than
+    // object
+    public abstract String getDocument(String key) throws JSONException;
 
     /**
      * Delete documents that match the specified time query.

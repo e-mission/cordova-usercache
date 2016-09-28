@@ -34,14 +34,20 @@ public class UserCachePlugin extends CordovaPlugin {
         Context ctxt = cordova.getActivity();
         if (action.equals("getDocument")) {
             final String documentKey = data.getString(0);
-            JSONObject doc = UserCacheFactory.getUserCache(ctxt).getDocument(documentKey);
-            if (doc == null) {
+            String docStr = UserCacheFactory.getUserCache(ctxt).getDocument(documentKey);
+            if (docStr == null) {
                 // Cordova doesn't like us to return with an empty objectA
                 // because then we get an NPE while initializing the result
                 // https://github.com/apache/cordova-android/blob/457c5b8b3b694265c991b456b15015741ade5014/framework/src/org/apache/cordova/PluginResult.java#L52
-                doc = new JSONObject();
+                callbackContext.success(new JSONObject());
+            } else {
+                try {
+                    callbackContext.success(new JSONObject(docStr));
+                } catch (JSONException e) {
+                    System.out.println("document was not a JSONObject, trying JSONArray");
+                    callbackContext.success(new JSONArray(docStr));
+                }
             }
-            callbackContext.success(doc);
             return true;
         } else if (action.equals("getSensorDataForInterval")) {
             final String key = data.getString(0);

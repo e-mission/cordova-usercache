@@ -163,12 +163,8 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     }
 
     @Override
-    public JSONObject getDocument(String key) throws JSONException {
-        String docString = getDocumentString(key);
-        if (docString != null) {
-            return new JSONObject(docString);
-        }
-        return null;
+    public String getDocument(String key) throws JSONException {
+        return getDocumentString(key);
     }
 
     private String getDocumentString(String key) {
