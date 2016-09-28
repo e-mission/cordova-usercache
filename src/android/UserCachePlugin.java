@@ -35,6 +35,12 @@ public class UserCachePlugin extends CordovaPlugin {
         if (action.equals("getDocument")) {
             final String documentKey = data.getString(0);
             JSONObject doc = UserCacheFactory.getUserCache(ctxt).getDocument(documentKey);
+            if (doc == null) {
+                // Cordova doesn't like us to return with an empty objectA
+                // because then we get an NPE while initializing the result
+                // https://github.com/apache/cordova-android/blob/457c5b8b3b694265c991b456b15015741ade5014/framework/src/org/apache/cordova/PluginResult.java#L52
+                doc = new JSONObject();
+            }
             callbackContext.success(doc);
             return true;
         } else if (action.equals("getSensorDataForInterval")) {
@@ -92,14 +98,20 @@ public class UserCachePlugin extends CordovaPlugin {
             final UserCache.TimeQuery timeQuery = new Gson().fromJson(tqJsonObject.toString(),
                     UserCache.TimeQuery.class);
             UserCacheFactory.getUserCache(ctxt).clearEntries(timeQuery);
+            callbackContext.success();
+            return true;
         } else if (action.equals("invalidateCache")) {
             final JSONObject tqJsonObject = data.getJSONObject(1);
 
             final UserCache.TimeQuery timeQuery = new Gson().fromJson(tqJsonObject.toString(),
                     UserCache.TimeQuery.class);
             UserCacheFactory.getUserCache(ctxt).invalidateCache(timeQuery);
+            callbackContext.success();
+            return true;
         } else if (action.equals("clearAll")) {
             UserCacheFactory.getUserCache(ctxt).clear();
+            callbackContext.success();
+            return true;
         }
         return false;
     }

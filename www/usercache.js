@@ -25,10 +25,20 @@ var UserCache = {
         });
     },
 
-    getAllSensorDataForInterval: function(key) {
+    isEmptyDoc: function(resultDoc) {
+        /*
+         * Checks to see if the returned document is empty. Needed because we can't return
+         * null from android plugins, so we return the empty document instead, but
+         * then we need to check for it.
+         * https://github.com/apache/cordova-android/blob/457c5b8b3b694265c991b456b15015741ade5014/framework/src/org/apache/cordova/PluginResult.java#L52
+         */
+        return (Object.keys(resultDoc).length) == 0
+    },
+
+    getAllSensorData: function(key) {
         return UserCache.getSensorDataForInterval(key, UserCache.getAllTimeQuery());
     },
-    getAllMessagesForInterval: function(key) {
+    getAllMessages: function(key) {
         return UserCache.getMessagesForInterval(key, UserCache.getAllTimeQuery());
     },
     getSensorDataForInterval: function(key, tq) {

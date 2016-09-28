@@ -19,6 +19,9 @@
     @try {
         NSString* key = [[command arguments] objectAtIndex:0];
         NSDictionary* resultDoc = [[BuiltinUserCache database] getDocument:key];
+        if (resultDoc == NULL) {
+            resultDoc = [NSDictionary new];
+        }
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK
                                    messageAsDictionary:resultDoc];
