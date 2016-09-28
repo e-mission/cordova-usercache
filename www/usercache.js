@@ -19,157 +19,106 @@ var UserCache = {
     DOCUMENT_TYPE: "document",
     RW_DOCUMENT_TYPE: "rw-document",
 
-    /*
-     * If this is not done, then we may read read the table before making any
-     * native calls, and on iOS, that will cause us to create a loggerDB
-     * instead of copying the template.
-     */
-    db: function() {
-        // One handle for each thread
-        if (UserCache.dbHandle == null) {
-            UserCache.dbHandle = window.sqlitePlugin.openDatabase({
-                name: "userCacheDB",
-                location: 2,
-                createFromLocation: 1
-            });
-        }
-        return UserCache.dbHandle;
-    },
-
     getDocument: function(key) {
         return new Promise (function(resolve, reject){
-            UserCache.db().readTransaction(function(tx) {
-            /*
-             * We can have multiple entries for a particular key as the document associated with the key
-             * is updated throughout the day. We should really override as part of the sync. But for now,
-             * will deal with it in the client by retrieving the last entry.
-             */
-            var selQuery = "SELECT "+UserCache.KEY_DATA+" FROM "+UserCache.TABLE_USER_CACHE +
-                " WHERE "+ UserCache.KEY_KEY + " = '" + key + "'" +
-                " AND ("+ UserCache.KEY_TYPE + " = '" + UserCache.DOCUMENT_TYPE + "'" +
-                  " OR "+ UserCache.KEY_TYPE + " = '" + UserCache.RW_DOCUMENT_TYPE+ "') "+
-                  "ORDER BY "+UserCache.KEY_WRITE_TS+" DESC LIMIT 1";
-            window.Logger.log(window.Logger.LEVEL_INFO, "About to execute query "+selQuery+" against userCache")
-            tx.executeSql(selQuery,
-                [],
-                function(tx, data) {
-                    var resultList = [];
-                    console.log("Result has "+data.rows.length+" rows");
-                    for (i = 0; i < data.rows.length; i++) {
-                        resultList.push(data.rows.item(i)[UserCache.KEY_DATA]);
-                    }
-                    resolve(resultList);
-                }, function(tx, response) {
-                    reject(response);
-                });
-            });
+            exec(resolve, reject, "UserCache", "getDocument", [key])
         });
     },
 
-    getSensorData: function(key, successCallback, errorCallback) {
-        UserCache.getEntries(UserCache.SENSOR_DATA_TYPE, key, successCallback, errorCallback);
+    isEmptyDoc: function(resultDoc) {
+        /*
+         * Checks to see if the returned document is empty. Needed because we can't return
+         * null from android plugins, so we return the empty document instead, but
+         * then we need to check for it.
+         * https://github.com/apache/cordova-android/blob/457c5b8b3b694265c991b456b15015741ade5014/framework/src/org/apache/cordova/PluginResult.java#L52
+         */
+        return (Object.keys(resultDoc).length) == 0
     },
 
-    getMessages: function(key, successCallback, errorCallback) {
-        UserCache.getEntries(UserCache.MESSAGE_TYPE, key, successCallback, errorCallback);
+    getAllSensorData: function(key) {
+        return UserCache.getSensorDataForInterval(key, UserCache.getAllTimeQuery());
     },
-
-    getEntries: function(type, key, successCallback, errorCallback) {
-        UserCache.db().readTransaction(function(tx) {
-            /*
-             * We can have multiple entries for a particular key as the document associated with the key
-             * is updated throughout the day. We should really override as part of the sync. But for now,
-             * will deal with it in the client by retrieving the last entry.
-             */
-            var selQuery = "SELECT "+UserCache.KEY_WRITE_TS+"," + UserCache.KEY_TIMEZONE+","+UserCache.KEY_DATA+
-                " FROM "+UserCache.TABLE_USER_CACHE +
-                " WHERE "+ UserCache.KEY_KEY + " = '" + key + "'" +
-                " AND "+ UserCache.KEY_TYPE + " = '" + type + "'" +
-                " ORDER BY "+UserCache.KEY_WRITE_TS;
-            window.Logger.log(window.Logger.LEVEL_INFO,
-                "About to execute query "+selQuery+" against userCache")
-            tx.executeSql(selQuery,
-                [],
-                function(tx, data) {
-                    var resultList = [];
-                    console.log("Result has "+data.rows.length+" rows");
-                    for (i = 0; i < data.rows.length; i++) {
-                        row = data.rows.item(i)
-                        entry = {};
-                        metadata = {};
-                        metadata.write_ts = row[UserCache.KEY_WRITE_TS];
-                        metadata.tz = row[UserCache.KEY_TIMEZONE];
-                        metadata.write_fmt_time = moment.unix(metadata.write_ts)
-                                                    .tz(metadata.tz)
-                                                    .format("llll");
-                        entry.metadata = metadata;
-                        entry.data = row[UserCache.KEY_DATA];
-                        resultList.push(entry);
-                    }
-                    successCallback(resultList);
-                }, function(tx,error) {
-                    console.log(error);
-                    errorCallback(error);
-                });
+    getAllMessages: function(key) {
+        return UserCache.getMessagesForInterval(key, UserCache.getAllTimeQuery());
+    },
+    getSensorDataForInterval: function(key, tq) {
+        /*
+         The tq parameter represents a time query, a json object with the structure
+         {
+              "key": "write_ts",
+              "startTs": <timestamp_in_secs>,
+              "endTs": <timestamp_in_secs>
+         }
+         */
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "getSensorDataForInterval", [key, tq]);
         });
     },
-    // Let's try to use promises this time, instead of using callbacks. Since
-    // we are putting a document, we don't actually need to return anything,
-    // but whatever.
-    putRWDocument: function(key, value) {
-        return UserCache.putEntries(UserCache.RW_DOCUMENT_TYPE, key, [value]);
+
+    getMessagesForInterval: function(key, tq) {
+        /*
+         The tq parameter represents a time query, a json object with the structure
+         {
+              "key": "write_ts",
+              "startTs": <timestamp_in_secs>,
+              "endTs": <timestamp_in_secs>
+         }
+         */
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "getMessagesForInterval", [key, tq]);
+        });
+    },
+
+    getAllTimeQuery: function() {
+        // Using the standard Date instead of moment in order to reduce dependencies
+        return {key: "write_ts", startTs: 0, endTs: Date.now()/1000}
+    },
+
+    getLastMessages: function(key, nEntries) {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "getLastMessages", [key, nEntries]);
+        });
+    },
+
+    getLastSensorData: function(key, nEntries) {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "getLastSensorData", [key, nEntries]);
+        });
     },
 
     putMessage: function(key, value) {
-        return UserCache.putEntries(UserCache.MESSAGE_TYPE, key, [value]);
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "putMessage", [key, value]);
+        });
     },
 
-    putEntries: function(type, key, valueList) {
-        // We need a new top level promise because UserCache.db().transaction is async!!
+    putRWDocument: function(key, value) {
         return new Promise(function(resolve, reject) {
-            UserCache.db().transaction(function(tx) {
-                var selQuery = "INSERT INTO "+UserCache.TABLE_USER_CACHE+
-                        " ("+UserCache.KEY_WRITE_TS+"," + UserCache.KEY_TIMEZONE + "," +
-                        UserCache.KEY_TYPE + "," + UserCache.KEY_KEY + "," +
-                        UserCache.KEY_DATA + ") VALUES (?, ?, ?, ?, ?)";
-                window.Logger.log(window.Logger.LOG_INFO,
-                    "About to execute query "+selQuery+" against userCache");
-                // If we tried to execute these serially, it is unclear when
-                // all of the values have been stored because there is a
-                // callback for each of them, and we can get callbacks at
-                // various times. So when do we mark the parent promise as
-                // complete?  We can store both success and fail results in
-                // arrays and generate an event when the sum is complete, but
-                // why not just use promises directly instead?
-                var promiseList = valueList.map(function(value, index, array) {
-                    var currPromise = new Promise(function(resolve, reject) {
-                        var currArgs = [moment().unix(),
-                             // Unsure how accurate this is - do we need a native plugin?
-                             moment.tz.guess(),
-                             type, key, value];
-                        window.Logger.log(window.Logger.LOG_INFO,
-                            "About to use args = "+currArgs);
-                        tx.executeSql(selQuery,
-                             // date in milliseconds, converted by division. Trying to
-                             // keep it consistent with native code and to get more
-                             // uniqueness for the log display.
-                            currArgs, 
-                            function(tx, data) {
-                                // We are inserting, so no expected result
-                                // Didn't fail either, so nothing to push into the
-                                // index list
-                                resolve({"index": index, "value": value, "data": data});
-                            }, function(tx, error) {
-                                window.Logger.log(window.Logger.LOG_ERROR,
-                                   "error = "+error);
-                                reject({"index": index, "value": value,
-                                    "error": error});
-                         }); // exec SQL
-                    }); // promise
-                    return currPromise;
-                }); // map
-                resolve(Promise.all(promiseList));
-            }); // transaction
+            exec(resolve, reject, "UserCache", "putRWDocument", [key, value]);
+        });
+    },
+
+    // No putSensorData exposed through javascript since it is not intended for regularly sensed data
+    clearEntries: function() {
+        return UserCache.clearEntries(UserCache.getAllTimeQuery());
+    },
+    invalidateCache: function() {
+        return UserCache.invalidateCache(UserCache.getAllTimeQuery());
+    },
+    clearEntries: function(tq) {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "clearEntries", [tq]);
+        });
+    },
+    invalidateCache: function(tq) {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "invalidateCache", [tq]);
+        });
+    },
+    // The nuclear option
+    clearAll: function() {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "clearAll");
         });
     }
 }
