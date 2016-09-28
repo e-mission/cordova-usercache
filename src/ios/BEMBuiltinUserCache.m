@@ -380,28 +380,23 @@ static BuiltinUserCache *_database;
 }
 
 -(NSObject*) getDocument:(NSString*)key wrapperClass:(Class)cls {
-    // Since we are ordering the results by write_ts, we expect the following behavior:
-    // - only RW_DOCUMENT -> it is returned
-    // - only DOCUMENT -> it is returned
-    // - both RW_DOCUMENT and DOCUMENT, and DOCUMENT is generated from RW_DOCUMENT -> DOCUMENT is returned
-    // since it has the later timestamp
-    // - both RW_DOCUMENT and DOCUMENT, and RW_DOCUMENT is created by cloning DOCUMENT -> RW_DOCUMENT
-    // since it has the later timestamp
-    // If any of the assumptions in the RW_DOCUMENT and DOCUMENT case are violated, we need to change this
-    // to read both values and look at their types
-    NSString* queryString = [NSString
-                             stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND (%@ = '%@' OR %@ = '%@') ORDER BY write_ts DESC LIMIT 1",
-                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, [self getStatName:key], KEY_TYPE, DOCUMENT_TYPE, KEY_TYPE, RW_DOCUMENT_TYPE];
-    NSArray *wrapperJSON = [self readSelectResults:queryString nCols:1];
-    assert((wrapperJSON.count == 0) || (wrapperJSON.count == 1));
-    if (wrapperJSON.count == 0) {
-        return NULL;
-    } else {
-        return [DataUtils stringToWrapper:wrapperJSON[0][0] wrapperClass:cls];
+    NSString* dataStr = [self getDocumentString:[self getStatName:key]];
+    if (dataStr != NULL) {
+        return [DataUtils stringToWrapper:dataStr wrapperClass:cls];
     }
+    return NULL;
 }
 
 -(NSDictionary*) getDocument:(NSString*)key {
+    NSString* dataStr = [self getDocumentString:key];
+    if (dataStr != NULL) {
+        return [DataUtils loadFromJSONString:dataStr];
+    }
+    return NULL;
+}
+
+- (NSString*) getDocumentString:(NSString*)key
+{
     // Since we are ordering the results by write_ts, we expect the following behavior:
     // - only RW_DOCUMENT -> it is returned
     // - only DOCUMENT -> it is returned
@@ -413,13 +408,13 @@ static BuiltinUserCache *_database;
     // to read both values and look at their types
     NSString* queryString = [NSString
                              stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND (%@ = '%@' OR %@ = '%@') ORDER BY write_ts DESC LIMIT 1",
-                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, [self getStatName:key], KEY_TYPE, DOCUMENT_TYPE, KEY_TYPE, RW_DOCUMENT_TYPE];
+                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, key, KEY_TYPE, DOCUMENT_TYPE, KEY_TYPE, RW_DOCUMENT_TYPE];
     NSArray *wrapperJSON = [self readSelectResults:queryString nCols:1];
     assert((wrapperJSON.count == 0) || (wrapperJSON.count == 1));
     if (wrapperJSON.count == 0) {
         return NULL;
     } else {
-        return [DataUtils loadFromJSONString:wrapperJSON[0][0]];
+        return wrapperJSON[0][0];
     }
 }
 
