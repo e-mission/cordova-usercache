@@ -130,7 +130,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         newValues.put(KEY_TIMEZONE, TimeZone.getDefault().getID());
         newValues.put(KEY_TYPE, type);
         newValues.put(KEY_KEY, key);
-        newValues.put(KEY_DATA, new Gson().toJson(value));
+        newValues.put(KEY_DATA, value);
         db.insert(TABLE_USER_CACHE, null, newValues);
         Log.d(cachedCtx, TAG, "Added value for key " + key +
                 " at time "+newValues.getAsDouble(KEY_WRITE_TS));

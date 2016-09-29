@@ -304,7 +304,7 @@ static BuiltinUserCache *_database;
     NSString* queryString = [NSString
                              stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND %@ >= %f AND %@ <= %f ORDER BY write_ts DESC",
                              KEY_DATA, TABLE_USER_CACHE, KEY_KEY, key,
-                             tq.timeKey, tq.startTs, tq.timeKey, tq.endTs];
+                             tq.key, tq.startTs, tq.key, tq.endTs];
     NSArray *wrapperJSON = [self readSelectResults:queryString nCols:1];
     return wrapperJSON;
 }
@@ -579,7 +579,7 @@ static BuiltinUserCache *_database;
 
     // Start slightly before and end slightly after to make sure that we get all entries
     TimeQuery* tq = [TimeQuery new];
-    tq.timeKey = KEY_WRITE_TS;
+    tq.key = KEY_WRITE_TS;
     tq.startTs = start_ts - 1;
     tq.endTs = end_ts + 1;
     return tq;
@@ -617,7 +617,7 @@ static BuiltinUserCache *_database;
     [LocalNotificationManager addNotification:[NSString stringWithFormat:@"Clearing entries for timequery %@", tq] showUI:FALSE];
     // Don't delete read-write documents just yet - they will be deleted when we get the overriden document
     NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ > %f AND %@ < %f AND %@ != '%@')",
-                             TABLE_USER_CACHE, tq.timeKey, tq.startTs, tq.timeKey, tq.endTs, KEY_TYPE, RW_DOCUMENT_TYPE];
+                             TABLE_USER_CACHE, tq.key, tq.startTs, tq.key, tq.endTs, KEY_TYPE, RW_DOCUMENT_TYPE];
     [self clearQuery:deleteQuery];
 }
 
@@ -625,7 +625,7 @@ static BuiltinUserCache *_database;
 {
     // Invalidate the cache, i.e. entries of type DOCUMENT
     NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ > %f AND %@ < %f AND %@ == '%@')",
-                             TABLE_USER_CACHE, tq.timeKey, tq.startTs, tq.timeKey, tq.endTs, KEY_TYPE, DOCUMENT_TYPE];
+                             TABLE_USER_CACHE, tq.key, tq.startTs, tq.key, tq.endTs, KEY_TYPE, DOCUMENT_TYPE];
     [self clearQuery:deleteQuery];
 }
 

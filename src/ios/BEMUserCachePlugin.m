@@ -216,6 +216,7 @@
     NSString* callbackId = [command callbackId];
     @try {
         NSDictionary* timequeryDoc = [command.arguments objectAtIndex:0];
+        NSLog(@"timequeryDoc = %@", timequeryDoc);
         TimeQuery* timequery = [TimeQuery new];
         [DataUtils dictToWrapper:timequeryDoc wrapper:timequery];
         [[BuiltinUserCache database] invalidateCache:timequery];
