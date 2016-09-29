@@ -99,10 +99,10 @@ var UserCache = {
     },
 
     // No putSensorData exposed through javascript since it is not intended for regularly sensed data
-    clearEntries: function() {
+    clearAllEntries: function() {
         return UserCache.clearEntries(UserCache.getAllTimeQuery());
     },
-    invalidateCache: function() {
+    invalidateAllCache: function() {
         return UserCache.invalidateCache(UserCache.getAllTimeQuery());
     },
     clearEntries: function(tq) {
@@ -118,7 +118,7 @@ var UserCache = {
     // The nuclear option
     clearAll: function() {
         return new Promise(function(resolve, reject) {
-            exec(resolve, reject, "UserCache", "clearAll");
+            exec(resolve, reject, "UserCache", "clearAll", []);
         });
     }
 }

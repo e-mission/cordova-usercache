@@ -107,7 +107,7 @@ public class UserCachePlugin extends CordovaPlugin {
             callbackContext.success();
             return true;
         } else if (action.equals("invalidateCache")) {
-            final JSONObject tqJsonObject = data.getJSONObject(1);
+            final JSONObject tqJsonObject = data.getJSONObject(0);
 
             final UserCache.TimeQuery timeQuery = new Gson().fromJson(tqJsonObject.toString(),
                     UserCache.TimeQuery.class);
