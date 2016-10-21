@@ -12,6 +12,6 @@ public class UserCacheFactory {
      * so we return it.
      */
     public static UserCache getUserCache(Context ctxt) {
-        return new BuiltinUserCache(ctxt);
+        return BuiltinUserCache.getDatabase(ctxt);
     }
 }
