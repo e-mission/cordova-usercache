@@ -64,8 +64,21 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     private static final String RW_DOCUMENT_TYPE = "rw-document";
 
     private Context cachedCtx;
+    private static BuiltinUserCache database;
 
-    public BuiltinUserCache(Context ctx) {
+    public static BuiltinUserCache getDatabase(Context ctxt) {
+        if (ctxt == null) {
+            return null;
+        }
+        if (database == null) {
+            System.out.println("logger == null, lazily creating new logger");
+            database = new BuiltinUserCache(ctxt);
+        }
+        // System.out.println("Returning logger "+logger);
+        return database;
+    }
+
+    private BuiltinUserCache(Context ctx) {
         super(ctx, DATABASE_NAME, null, DATABASE_VERSION);
         cachedCtx = ctx;
     }
