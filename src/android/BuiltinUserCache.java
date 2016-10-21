@@ -147,7 +147,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         db.insert(TABLE_USER_CACHE, null, newValues);
         Log.d(cachedCtx, TAG, "Added value for key " + key +
                 " at time "+newValues.getAsDouble(KEY_WRITE_TS));
-        db.close();
         }
 
     private void putErrorValue(Metadata md, String dataStr) {
@@ -161,7 +160,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         newValues.put(KEY_DATA, dataStr);
         db.insert(TABLE_USER_CACHE_ERROR, null, newValues);
         Log.d(cachedCtx, TAG, "Added error value for key "+ md.getKey());
-        db.close();
     }
 
     @Override
@@ -196,22 +194,16 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                 " WHERE " + KEY_KEY + " = '" + key + "'" +
                 " AND ("+ KEY_TYPE + " = '"+ DOCUMENT_TYPE + "' OR " + KEY_TYPE + " = '" + RW_DOCUMENT_TYPE + "')"+
                 " ORDER BY "+KEY_WRITE_TS+" DESC LIMIT 1";
-        try {
         Cursor queryVal = db.rawQuery(selectQuery, null);
         if (queryVal.moveToFirst()) {
             String data = queryVal.getString(0);
             System.out.println("data = "+data);
                 String retVal = data;
-            db.close();
                 // updateReadTimestamp(key);
             return retVal;
         } else {
             // If there was no matching entry, return an empty list instead of null
-            db.close();
             return null;
-        }
-        } finally {
-            db.close();
         }
     }
 
@@ -267,7 +259,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         Cursor resultCursor = db.rawQuery(queryString, null);
 
         String[] result = getValuesFromCursor(resultCursor);
-        db.close();
         return result;
     }
 
@@ -298,7 +289,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         Cursor resultCursor = db.rawQuery(queryString, null);
 
         String[] valueList = getValuesFromCursor(resultCursor);
-        db.close();
         return valueList;
     }
 
@@ -323,7 +313,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         updateValues.put(KEY_READ_TS, ((double)System.currentTimeMillis())/1000);
         updateValues.put(KEY_KEY, key);
         writeDb.update(TABLE_USER_CACHE, updateValues, null, null);
-        writeDb.close();
     }
 
     @Override
@@ -357,7 +346,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
         // SQLiteDatabase db = this.getWritableDatabase();
         db.delete(TABLE_USER_CACHE, whereString, whereArgs);
-        db.close();
 
         /*
         if (resultCount > 0) {
@@ -381,7 +369,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
         // SQLiteDatabase db = this.getWritableDatabase();
         db.delete(TABLE_USER_CACHE, whereString, whereArgs);
-        db.close();
     }
 
     /*
@@ -391,7 +378,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         Log.d(cachedCtx, TAG, "Clearing all messages ");
         SQLiteDatabase db = this.getWritableDatabase();
         db.delete(TABLE_USER_CACHE, null, null);
-        db.close();
     }
 
     @Override
@@ -433,7 +419,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
             Log.d(cachedCtx, TAG, write_ts + ": "+
                     resultCursor.getString(resultCursor.getColumnIndex(KEY_DATA)));
             resultCursor.close();
-            db.close();
             return write_ts;
         } else {
             resultCursor.close();
@@ -461,7 +446,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                         Log.w(cachedCtx, TAG, "regex did not find entry, had to search all");
                         double retVal = allCursor.getDouble(allCursor.getColumnIndex(KEY_WRITE_TS));
                         allCursor.close();
-                        db.close();
                         return retVal;
                     }
                     allCursor.moveToNext();
@@ -477,7 +461,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         // This may mean that we have pushed all completed trips.
         // Since this is supposed to return the millisecond timestamp,
         // we just return a negative number (-1)
-        db.close();
         return -1;
     }
 
@@ -496,14 +479,12 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
             Log.d(cachedCtx, TAG, write_ts + ": " +
                     resultCursor.getString(resultCursor.getColumnIndex(KEY_DATA)));
             resultCursor.close();
-            db.close();
             return write_ts;
         } else {
             Log.d(cachedCtx, TAG, "There are no entries in the usercache." +
                     "A sync must have just completed!");
         }
         resultCursor.close();
-        db.close();
         return -1;
     }
 
@@ -597,7 +578,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
             }
         }
         queryVal.close();
-        db.close();
         Log.i(cachedCtx, TAG, "Returning array of length "+entryArray.length());
         return entryArray;
     }
@@ -626,7 +606,6 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
             long resultVal = db.insert(TABLE_USER_CACHE, null, newValues);
             Log.d(cachedCtx, TAG, "result of insert = "+resultVal);
         }
-        db.close();
     }
 
 
