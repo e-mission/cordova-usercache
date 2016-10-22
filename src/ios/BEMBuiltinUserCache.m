@@ -109,6 +109,14 @@ static BuiltinUserCache *_database;
     return statName;
 }
 
+- (NSString*)getSelCols:(BOOL)withMetadata {
+    if (withMetadata) {
+        return @"*";
+    } else {
+        return KEY_DATA;
+    }
+}
+
 - (NSString*)dbPath:(NSString*)dbName {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory,
                                                          NSUserDomainMask, YES);
@@ -277,20 +285,20 @@ static BuiltinUserCache *_database;
     }
 }
 
-- (NSArray*) readSelectResults:(NSString*) selectQuery nCols:(int)nCols {
+- (NSArray*) readSelectResults:(NSString*) selectQuery withMetadata:(BOOL)withMetadata {
     NSMutableArray* retVal = [[NSMutableArray alloc] init];
     
     sqlite3_stmt *compiledStatement;
     NSInteger selPrepCode = sqlite3_prepare_v2(_database, [selectQuery UTF8String], -1, &compiledStatement, NULL);
     if (selPrepCode == SQLITE_OK) {
         while (sqlite3_step(compiledStatement) == SQLITE_ROW) {
-            NSMutableArray* currRow = [[NSMutableArray alloc] init];
-            // Remember that while reading results, the index starts from 0
-            for (int resultCol = 0; resultCol < nCols; resultCol++) {
-                NSString* currResult = [self toNSString:(char*)sqlite3_column_text(compiledStatement, resultCol)];
-                [currRow addObject:currResult];
+            if (withMetadata) {
+                NSDictionary* currEntry = [self getEntry:compiledStatement];
+                [retVal addObject:currEntry];
+            } else {
+                NSString* currDataResult = [self toNSString:(char*)sqlite3_column_text(compiledStatement, 0)];
+                [retVal addObject:currDataResult];
             }
-            [retVal addObject:currRow];
         }
     } else {
         NSLog(@"Error code %ld while compiling query %@", (long)selPrepCode, selectQuery);
@@ -299,13 +307,14 @@ static BuiltinUserCache *_database;
     return retVal;
 }
 
-- (NSArray*) getValuesForInterval:(NSString*) key tq:(TimeQuery*)tq type:(NSString*)type
+- (NSArray*) getValuesForInterval:(NSString*) key tq:(TimeQuery*)tq
+                             type:(NSString*)type withMetadata:(BOOL)withMetadata
 {
     NSString* queryString = [NSString
                              stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND %@ >= %f AND %@ <= %f ORDER BY write_ts DESC",
-                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, key,
+                             [self getSelCols:withMetadata], TABLE_USER_CACHE, KEY_KEY, key,
                              tq.key, tq.startTs, tq.key, tq.endTs];
-    NSArray *wrapperJSON = [self readSelectResults:queryString nCols:1];
+    NSArray *wrapperJSON = [self readSelectResults:queryString withMetadata:withMetadata];
     return wrapperJSON;
 }
 
@@ -313,18 +322,20 @@ static BuiltinUserCache *_database;
 {
     NSMutableArray* retWrapperArr = [NSMutableArray new];
     for (int i = 0; i < jsonStringArr.count; i++) {
-        // Because we passed in nCols = 1, there will be a single value in each array row
-        [retWrapperArr addObject:[DataUtils stringToWrapper:jsonStringArr[i][0] wrapperClass:cls]];
+        [retWrapperArr addObject:[DataUtils stringToWrapper:jsonStringArr[i] wrapperClass:cls]];
     }
     return retWrapperArr;
 }
 
-- (NSArray*) wrapJSON:(NSArray*) jsonStringArr
+- (NSArray*) wrapJSON:(NSArray*) jsonStringOrEntryArr withMetadata:(BOOL)withMetadata
 {
     NSMutableArray* retWrapperArr = [NSMutableArray new];
-    for (int i = 0; i < jsonStringArr.count; i++) {
-        // Because we passed in nCols = 1, there will be a single value in each array row
-        [retWrapperArr addObject:[DataUtils loadFromJSONString:jsonStringArr[i][0]]];
+    for (int i = 0; i < jsonStringOrEntryArr.count; i++) {
+        if (withMetadata) {
+            [retWrapperArr addObject:jsonStringOrEntryArr[i]];
+        } else {
+            [retWrapperArr addObject:[DataUtils loadFromJSONString:jsonStringOrEntryArr[i]]];
+        }
     }
     return retWrapperArr;
 }
@@ -334,68 +345,83 @@ static BuiltinUserCache *_database;
 
 - (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq wrapperClass:(__unsafe_unretained Class)cls
 {
-    return [self wrapClass:[self getValuesForInterval:[self getStatName:key] tq:tq type:SENSOR_DATA_TYPE] wrapperClass:cls];
+    return [self wrapClass:[self getValuesForInterval:[self getStatName:key] tq:tq
+                                                 type:SENSOR_DATA_TYPE withMetadata:NO] wrapperClass:cls];
 }
 
 - (NSArray*) getMessageForInterval:(NSString*) key tq:(TimeQuery*)tq wrapperClass:(__unsafe_unretained Class)cls {
-    return [self wrapClass:[self getValuesForInterval:[self getStatName:key] tq:tq type:MESSAGE_TYPE] wrapperClass:cls];
+    return [self wrapClass:[self getValuesForInterval:[self getStatName:key] tq:tq
+                                                 type:MESSAGE_TYPE withMetadata:NO] wrapperClass:cls];
 }
 
-- (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq
+- (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq withMetadata:(BOOL)withMetadata
 {
-    return [self wrapJSON:[self getValuesForInterval:key tq:tq type:SENSOR_DATA_TYPE]];
+    return [self wrapJSON:[self getValuesForInterval:key tq:tq type:SENSOR_DATA_TYPE withMetadata:withMetadata] withMetadata:withMetadata];
 }
 
-- (NSArray*) getMessageForInterval:(NSString*) key tq:(TimeQuery*)tq {
-    return [self wrapJSON:[self getValuesForInterval:key tq:tq type:MESSAGE_TYPE]];
+- (NSArray*) getMessageForInterval:(NSString*) key tq:(TimeQuery*)tq withMetadata:(BOOL)withMetadata {
+    return [self wrapJSON:[self getValuesForInterval:key tq:tq type:MESSAGE_TYPE withMetadata:withMetadata]
+             withMetadata:withMetadata];
 }
 
 
-- (NSArray*) getLastValues:(NSString*) key nEntries:(int)nEntries type:(NSString*)type {
+- (NSArray*) getLastValues:(NSString*) key nEntries:(int)nEntries
+                      type:(NSString*)type withMetadata:(BOOL)withMetadata
+{
     /*
      * Note: the first getKey(keyRes) is the key of the message (e.g. 'background/location').
      * The second getKey(tq.keyRes) is the key of the time query (e.g. 'write_ts')
      */
     NSString* queryString = [NSString
                              stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND %@ = '%@' ORDER BY write_ts DESC LIMIT %d",
-                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, key, KEY_TYPE, type, nEntries];
-    NSArray *wrapperJSON = [self readSelectResults:queryString nCols:1];
+                             [self getSelCols:withMetadata], TABLE_USER_CACHE, KEY_KEY, key, KEY_TYPE, type, nEntries];
+    NSArray *wrapperJSON = [self readSelectResults:queryString withMetadata:withMetadata];
     return wrapperJSON;
 }
 
 - (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries wrapperClass:(Class)cls {
-    return [self wrapClass:[self getLastValues:[self getStatName:key] nEntries:nEntries type:SENSOR_DATA_TYPE] wrapperClass:cls];
+    return [self wrapClass:[self getLastValues:[self getStatName:key] nEntries:nEntries
+                                          type:SENSOR_DATA_TYPE withMetadata:NO] wrapperClass:cls];
 }
 
 - (NSArray*) getLastMessage:(NSString*)key nEntries:(int)nEntries wrapperClass:(Class)cls {
-    return [self wrapClass:[self getLastValues:[self getStatName:key] nEntries:nEntries type:MESSAGE_TYPE] wrapperClass:cls];
+    return [self wrapClass:[self getLastValues:[self getStatName:key] nEntries:nEntries
+                                          type:MESSAGE_TYPE withMetadata:NO] wrapperClass:cls];
 }
 
-- (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries {
-    return [self wrapJSON:[self getLastValues:[self getStatName:key] nEntries:nEntries type:SENSOR_DATA_TYPE]];
+- (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata {
+    return [self wrapJSON:[self getLastValues:[self getStatName:key] nEntries:nEntries
+                                         type:SENSOR_DATA_TYPE withMetadata:withMetadata]
+             withMetadata:withMetadata];
 }
 
-- (NSArray*) getLastMessage:(NSString*)key nEntries:(int)nEntries {
-    return [self wrapJSON:[self getLastValues:[self getStatName:key] nEntries:nEntries type:MESSAGE_TYPE]];
+- (NSArray*) getLastMessage:(NSString*)key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata {
+    return [self wrapJSON:[self getLastValues:[self getStatName:key] nEntries:nEntries
+                                         type:MESSAGE_TYPE withMetadata:withMetadata]
+             withMetadata:withMetadata];
 }
 
 -(NSObject*) getDocument:(NSString*)key wrapperClass:(Class)cls {
-    NSString* dataStr = [self getDocumentString:[self getStatName:key]];
+    NSString* dataStr = [self getDocumentStringOrEntry:[self getStatName:key] withMetadata:NO];
     if (dataStr != NULL) {
         return [DataUtils stringToWrapper:dataStr wrapperClass:cls];
     }
     return NULL;
 }
 
--(NSDictionary*) getDocument:(NSString*)key {
-    NSString* dataStr = [self getDocumentString:key];
-    if (dataStr != NULL) {
-        return [DataUtils loadFromJSONString:dataStr];
+-(NSDictionary*) getDocument:(NSString*)key withMetadata:(BOOL) withMetadata {
+    id dataStrOrEntry = [self getDocumentStringOrEntry:key withMetadata:withMetadata];
+    if (dataStrOrEntry != NULL) {
+        if (withMetadata) {
+            return dataStrOrEntry;
+        } else {
+            return [DataUtils loadFromJSONString:dataStrOrEntry];
+        }
     }
     return NULL;
 }
 
-- (NSString*) getDocumentString:(NSString*)key
+- (id) getDocumentStringOrEntry:(NSString*)key withMetadata:(BOOL)withMetadata
 {
     // Since we are ordering the results by write_ts, we expect the following behavior:
     // - only RW_DOCUMENT -> it is returned
@@ -408,13 +434,13 @@ static BuiltinUserCache *_database;
     // to read both values and look at their types
     NSString* queryString = [NSString
                              stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND (%@ = '%@' OR %@ = '%@') ORDER BY write_ts DESC LIMIT 1",
-                             KEY_DATA, TABLE_USER_CACHE, KEY_KEY, key, KEY_TYPE, DOCUMENT_TYPE, KEY_TYPE, RW_DOCUMENT_TYPE];
-    NSArray *wrapperJSON = [self readSelectResults:queryString nCols:1];
+                             [self getSelCols:withMetadata], TABLE_USER_CACHE, KEY_KEY, key, KEY_TYPE, DOCUMENT_TYPE, KEY_TYPE, RW_DOCUMENT_TYPE];
+    NSArray *wrapperJSON = [self readSelectResults:queryString withMetadata:withMetadata];
     assert((wrapperJSON.count == 0) || (wrapperJSON.count == 1));
     if (wrapperJSON.count == 0) {
         return NULL;
     } else {
-        return wrapperJSON[0][0];
+        return wrapperJSON[0];
     }
 }
 
@@ -477,6 +503,34 @@ static BuiltinUserCache *_database;
  * find the last transition to trip end like we do on android.
  */
 
+- (NSDictionary*) getEntry:(sqlite3_stmt*) curr_stmt_result {
+            // Remember that while reading results, the index starts from 0
+            Metadata* md = [Metadata new];
+    md.write_ts = sqlite3_column_double(curr_stmt_result, 0);
+    md.read_ts = sqlite3_column_double(curr_stmt_result, 1);
+    md.time_zone = [self toNSString:(char*)sqlite3_column_text(curr_stmt_result, 2)];
+    md.type = [self toNSString:(char*)sqlite3_column_text(curr_stmt_result, 3)];
+    md.key = [self toNSString:(char*)sqlite3_column_text(curr_stmt_result, 4)];
+    md.plugin = [self toNSString:(char*)sqlite3_column_text(curr_stmt_result, 5)];
+            NSDictionary* mdDict = [DataUtils wrapperToDict:md];
+    NSString* dataStr = [self toNSString:(char*)sqlite3_column_text(curr_stmt_result, 6)];
+            NSDictionary* dataDict = [DataUtils loadFromJSONString:dataStr];
+            
+            if (dataDict == NULL) {
+                // data could not be parsed as valid JSON, storing into the error database
+                [LocalNotificationManager addNotification:[NSString stringWithFormat:@"Error while converting data string %@ to JSON, skipping it", dataStr] showUI:FALSE];
+                // TODO: Re-enable once we resolve
+                // https://github.com/e-mission/cordova-usercache/issues/7
+                // [self putErrorValue:md dataStr:dataStr];
+        return NULL;
+            } else {
+            NSMutableDictionary* entry = [NSMutableDictionary new];
+            [entry setObject:mdDict forKey:METADATA_TAG];
+            [entry setObject:dataDict forKey:DATA_TAG];
+        return entry;
+    }
+}
+
 - (NSArray*) syncPhoneToServer {
     double lastTripEndTs = [self getLastTs];
     if (lastTripEndTs < 0) {
@@ -487,35 +541,14 @@ static BuiltinUserCache *_database;
     
     NSString *retrieveDataQuery = [NSString stringWithFormat:@"SELECT * FROM %@ WHERE %@='%@' OR %@='%@' OR %@='%@' ORDER BY %@ LIMIT 10000", TABLE_USER_CACHE, KEY_TYPE, MESSAGE_TYPE, KEY_TYPE, SENSOR_DATA_TYPE, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_WRITE_TS];
     NSMutableArray *resultArray = [NSMutableArray new];
-
+            
     sqlite3_stmt *compiledStatement;
     NSInteger selPrepCode = sqlite3_prepare_v2(_database, [retrieveDataQuery UTF8String], -1,
                                                &compiledStatement, NULL);
     if (selPrepCode == SQLITE_OK) {
         while (sqlite3_step(compiledStatement) == SQLITE_ROW) {
-            // Remember that while reading results, the index starts from 0
-            Metadata* md = [Metadata new];
-            md.write_ts = sqlite3_column_double(compiledStatement, 0);
-            md.read_ts = sqlite3_column_double(compiledStatement, 1);
-            md.time_zone = [self toNSString:(char*)sqlite3_column_text(compiledStatement, 2)];
-            md.type = [self toNSString:(char*)sqlite3_column_text(compiledStatement, 3)];
-            md.key = [self toNSString:(char*)sqlite3_column_text(compiledStatement, 4)];
-            md.plugin = [self toNSString:(char*)sqlite3_column_text(compiledStatement, 5)];
-            NSDictionary* mdDict = [DataUtils wrapperToDict:md];
-            NSString* dataStr = [self toNSString:(char*)sqlite3_column_text(compiledStatement, 6)];
-            NSDictionary* dataDict = [DataUtils loadFromJSONString:dataStr];
-            
-            if (dataDict == NULL) {
-                // data could not be parsed as valid JSON, storing into the error database
-                [LocalNotificationManager addNotification:[NSString stringWithFormat:@"Error while converting data string %@ to JSON, skipping it", dataStr] showUI:FALSE];
-                // TODO: Re-enable once we resolve
-                // https://github.com/e-mission/cordova-usercache/issues/7
-                // [self putErrorValue:md dataStr:dataStr];
-            } else {
-            NSMutableDictionary* entry = [NSMutableDictionary new];
-            [entry setObject:mdDict forKey:METADATA_TAG];
-            [entry setObject:dataDict forKey:DATA_TAG];
-            
+            NSDictionary* entry = [self getEntry:compiledStatement];
+            if (entry != NULL) {
             [resultArray addObject:entry];
         }
         }

@@ -18,7 +18,9 @@
     NSString* callbackId = [command callbackId];
     @try {
         NSString* key = [[command arguments] objectAtIndex:0];
-        NSDictionary* resultDoc = [[BuiltinUserCache database] getDocument:key];
+        BOOL withMetadata = [[[command arguments] objectAtIndex:1] boolValue];
+        NSDictionary* resultDoc = [[BuiltinUserCache database] getDocument:key
+                                                              withMetadata:withMetadata];
         if (resultDoc == NULL) {
             resultDoc = [NSDictionary new];
         }
@@ -44,7 +46,10 @@
         NSDictionary* timequeryDoc = [command.arguments objectAtIndex:1];
         TimeQuery* timequery = [TimeQuery new];
         [DataUtils dictToWrapper:timequeryDoc wrapper:timequery];
-        NSArray* resultDoc = [[BuiltinUserCache database] getSensorDataForInterval:key tq:timequery];
+        BOOL withMetadata = [[[command arguments] objectAtIndex:2] boolValue];
+        NSArray* resultDoc = [[BuiltinUserCache database] getSensorDataForInterval:key
+                                                                                tq:timequery
+                                                                      withMetadata:withMetadata];
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK
                                    messageAsArray:resultDoc];
@@ -67,7 +72,10 @@
         NSDictionary* timequeryDoc = [command.arguments objectAtIndex:1];
         TimeQuery* timequery = [TimeQuery new];
         [DataUtils dictToWrapper:timequeryDoc wrapper:timequery];
-        NSArray* resultDoc = [[BuiltinUserCache database] getMessageForInterval:key tq:timequery];
+        BOOL withMetadata = [[[command arguments] objectAtIndex:2] boolValue];
+        NSArray* resultDoc = [[BuiltinUserCache database] getMessageForInterval:key
+                                                                             tq:timequery
+                                                                   withMetadata:withMetadata];
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK
                                    messageAsArray:resultDoc];
@@ -90,7 +98,10 @@
         NSString* key = [[command arguments] objectAtIndex:0];
         NSString* nEntriesStr = [command.arguments objectAtIndex:1];
         int nEntries = [nEntriesStr intValue];
-        NSArray* resultDoc = [[BuiltinUserCache database] getLastMessage:key nEntries:nEntries];
+        BOOL withMetadata = [[[command arguments] objectAtIndex:2] boolValue];
+        NSArray* resultDoc = [[BuiltinUserCache database] getLastMessage:key
+                                                                nEntries:nEntries
+                                                            withMetadata:withMetadata];
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK
                                    messageAsArray:resultDoc];
@@ -112,7 +123,10 @@
         NSString* key = [[command arguments] objectAtIndex:0];
         NSString* nEntriesStr = [command.arguments objectAtIndex:1];
         int nEntries = [nEntriesStr intValue];
-        NSArray* resultDoc = [[BuiltinUserCache database] getLastMessage:key nEntries:nEntries];
+        BOOL withMetadata = [[[command arguments] objectAtIndex:2] boolValue];
+        NSArray* resultDoc = [[BuiltinUserCache database] getLastMessage:key
+                                                                nEntries:nEntries
+                                                            withMetadata:withMetadata];
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK
                                    messageAsArray:resultDoc];

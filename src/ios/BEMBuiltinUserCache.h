@@ -46,12 +46,13 @@
 
 // Versions that return JSON, for use with the plugin interface
 
-- (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq;
-- (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries;
+- (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq withMetadata:(BOOL)withMetadata;
+- (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata;
 
-- (NSArray*) getMessageForInterval:(NSString*) key tq:(TimeQuery*)tq;
-- (NSArray*) getLastMessage:(NSString*) key nEntries:(int)nEntries;
-- (NSDictionary*) getDocument:(NSString*)key;
+- (NSArray*) getMessageForInterval:(NSString*) key tq:(TimeQuery*)tq withMetadata:(BOOL)withMetadata;
+- (NSArray*) getLastMessage:(NSString*) key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata;
+
+- (NSDictionary*) getDocument:(NSString*)key withMetadata:(BOOL)withMetadata;
 
 - (double) getTsOfLastTransition;
 - (NSArray*) syncPhoneToServer;
