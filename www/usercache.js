@@ -19,9 +19,9 @@ var UserCache = {
     DOCUMENT_TYPE: "document",
     RW_DOCUMENT_TYPE: "rw-document",
 
-    getDocument: function(key) {
+    getDocument: function(key, withMetadata) {
         return new Promise (function(resolve, reject){
-            exec(resolve, reject, "UserCache", "getDocument", [key])
+            exec(resolve, reject, "UserCache", "getDocument", [key, withMetadata])
         });
     },
 
@@ -36,12 +36,12 @@ var UserCache = {
     },
 
     getAllSensorData: function(key) {
-        return UserCache.getSensorDataForInterval(key, UserCache.getAllTimeQuery());
+        return UserCache.getSensorDataForInterval(key, UserCache.getAllTimeQuery(), true);
     },
     getAllMessages: function(key) {
-        return UserCache.getMessagesForInterval(key, UserCache.getAllTimeQuery());
+        return UserCache.getMessagesForInterval(key, UserCache.getAllTimeQuery(), true);
     },
-    getSensorDataForInterval: function(key, tq) {
+    getSensorDataForInterval: function(key, tq, withMetadata) {
         /*
          The tq parameter represents a time query, a json object with the structure
          {
@@ -51,11 +51,11 @@ var UserCache = {
          }
          */
         return new Promise(function(resolve, reject) {
-            exec(resolve, reject, "UserCache", "getSensorDataForInterval", [key, tq]);
+            exec(resolve, reject, "UserCache", "getSensorDataForInterval", [key, tq, withMetadata]);
         });
     },
 
-    getMessagesForInterval: function(key, tq) {
+    getMessagesForInterval: function(key, tq, withMetadata) {
         /*
          The tq parameter represents a time query, a json object with the structure
          {
@@ -65,7 +65,7 @@ var UserCache = {
          }
          */
         return new Promise(function(resolve, reject) {
-            exec(resolve, reject, "UserCache", "getMessagesForInterval", [key, tq]);
+            exec(resolve, reject, "UserCache", "getMessagesForInterval", [key, tq, withMetadata]);
         });
     },
 
@@ -74,15 +74,15 @@ var UserCache = {
         return {key: "write_ts", startTs: 0, endTs: Date.now()/1000}
     },
 
-    getLastMessages: function(key, nEntries) {
+    getLastMessages: function(key, nEntries, withMetadata) {
         return new Promise(function(resolve, reject) {
-            exec(resolve, reject, "UserCache", "getLastMessages", [key, nEntries]);
+            exec(resolve, reject, "UserCache", "getLastMessages", [key, nEntries, withMetadata]);
         });
     },
 
-    getLastSensorData: function(key, nEntries) {
+    getLastSensorData: function(key, nEntries, withMetadata) {
         return new Promise(function(resolve, reject) {
-            exec(resolve, reject, "UserCache", "getLastSensorData", [key, nEntries]);
+            exec(resolve, reject, "UserCache", "getLastSensorData", [key, nEntries, withMetadata]);
         });
     },
 

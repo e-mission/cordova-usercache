@@ -78,11 +78,15 @@ public interface UserCache {
     // a) cumbersome and
     // b) not necessary when the objects are not consumed in native code
     // c) wasted cycles JSON -> GSON -> JSON
-    public abstract JSONArray getMessagesForInterval(String key, TimeQuery tq) throws JSONException;
-    public abstract JSONArray getSensorDataForInterval(String key, TimeQuery tq) throws JSONException;
+    public abstract JSONArray getMessagesForInterval(String key, TimeQuery tq,
+                                                     boolean withMetadata) throws JSONException;
+    public abstract JSONArray getSensorDataForInterval(String key, TimeQuery tq,
+                                                       boolean withMetadata) throws JSONException;
 
-    public abstract JSONArray getLastMessages(String key, int nEntries) throws JSONException;
-    public abstract JSONArray getLastSensorData(String key, int nEntries) throws JSONException;
+    public abstract JSONArray getLastMessages(String key, int nEntries,
+                                              boolean withMetadata) throws JSONException;
+    public abstract JSONArray getLastSensorData(String key, int nEntries,
+                                                boolean withMetadata) throws JSONException;
 
         /**
          * Return the document that matches the specified key.
@@ -92,7 +96,7 @@ public interface UserCache {
     public abstract <T> T getDocument(int key, Class<T> classOfT);
     // Can be either JSONObject or JSONArray, and they don't have a common superclass other than
     // object
-    public abstract String getDocument(String key) throws JSONException;
+    public abstract Object getDocument(String key, boolean withMetadata) throws JSONException;
 
     /**
      * Delete documents that match the specified time query.

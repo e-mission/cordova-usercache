@@ -7,7 +7,6 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -105,6 +104,14 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         return cachedCtx.getString(keyRes);
     }
 
+    private String getSelCols(boolean withMetadata) {
+        if (withMetadata) {
+            return "*";
+        } else {
+            return KEY_DATA;
+        }
+    }
+
     @Override
     public void putSensorData(int keyRes, Object value) {
         putValue(getKey(keyRes), new Gson().toJson(value), SENSOR_DATA_TYPE);
@@ -165,7 +172,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     @Override
     public <T> T getDocument(int keyRes, Class<T> classOfT) {
         String key = getKey(keyRes);
-        String docString = getDocumentString(key);
+        String docString = (String) getDocumentString(key, false);
         if (docString != null) {
             T retVal = new Gson().fromJson(docString, classOfT);
             return retVal;
@@ -174,11 +181,27 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     }
 
     @Override
-    public String getDocument(String key) throws JSONException {
-        return getDocumentString(key);
+    public Object getDocument(String key, boolean withMetadata)
+            throws JSONException {
+        Object docObj = getDocumentString(key, withMetadata);
+        if (docObj == null) {
+            return new JSONObject();
+        } else {
+            if (withMetadata) {
+                JSONObject entry = (JSONObject)docObj;
+                return entry;
+            } else {
+                try {
+                    return new JSONObject((String) docObj);
+                } catch(JSONException e) {
+                    System.out.println("document was not a JSONObject, trying JSONArray");
+                    return new JSONArray((String)docObj);
+                }
+            }
+        }
     }
 
-    private String getDocumentString(String key) {
+    private Object getDocumentString(String key, boolean withMetadata) {
         // Since we are ordering the results by write_ts, we expect the following behavior:
         // - only RW_DOCUMENT -> it is returned
         // - only DOCUMENT -> it is returned
@@ -190,65 +213,83 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         // to read both values and look at their types
 
         SQLiteDatabase db = this.getReadableDatabase();
-        String selectQuery = "SELECT "+KEY_DATA+" from " + TABLE_USER_CACHE +
+        String selectQuery = "SELECT "+getSelCols(withMetadata)+" from " + TABLE_USER_CACHE +
                 " WHERE " + KEY_KEY + " = '" + key + "'" +
                 " AND ("+ KEY_TYPE + " = '"+ DOCUMENT_TYPE + "' OR " + KEY_TYPE + " = '" + RW_DOCUMENT_TYPE + "')"+
                 " ORDER BY "+KEY_WRITE_TS+" DESC LIMIT 1";
         Cursor queryVal = db.rawQuery(selectQuery, null);
         if (queryVal.moveToFirst()) {
+            if (withMetadata) {
+                try {
+                    return getEntry(queryVal);
+                } catch (JSONException e) {
+                    // We catch and return null instead of throwing because otherwise
+                    // we will need to deal with the JSONException all the way up the getDocument
+                    // with wrapper class chain
+                    return null;
+                }
+            } else {
             String data = queryVal.getString(0);
             System.out.println("data = "+data);
                 String retVal = data;
                 // updateReadTimestamp(key);
             return retVal;
+            }
         } else {
             // If there was no matching entry, return an empty list instead of null
             return null;
         }
     }
 
-    private <T> T[] wrapGson(String[] stringObjects, Class<T> classOfT) {
+    /*
+     * For the GSON case, there is no metadata, so we expect all the objects to be strings.
+     */
+    private <T> T[] wrapGson(Object[] stringObjects, Class<T> classOfT) {
         T[] resultArray = (T[]) Array.newInstance(classOfT, stringObjects.length);
         for (int i=0; i < stringObjects.length; i++) {
-            resultArray[i] = new Gson().fromJson(stringObjects[i], classOfT);
+            resultArray[i] = new Gson().fromJson((String)stringObjects[i], classOfT);
             }
         return resultArray;
         }
 
-    private JSONArray wrapJson(String[] stringObjects) throws JSONException {
+    private JSONArray wrapJson(Object[] stringOrEntryObjects, boolean withMetadata) throws JSONException {
         JSONArray resultArray = new JSONArray();
-        for (int i=0; i < stringObjects.length; i++) {
-            resultArray.put(new JSONObject(stringObjects[i]));
+        for (int i=0; i < stringOrEntryObjects.length; i++) {
+            JSONObject currEntry = (JSONObject)stringOrEntryObjects[i];
+            if (!withMetadata) {
+                currEntry = new JSONObject((String)stringOrEntryObjects[i]);
+            }
+            resultArray.put(currEntry);
         }
         return resultArray;
     }
 
     @Override
     public <T> T[] getMessagesForInterval(int keyRes, TimeQuery tq, Class<T> classOfT) {
-        return wrapGson(getValuesForInterval(getKey(keyRes), MESSAGE_TYPE, tq), classOfT);
+        return wrapGson(getValuesForInterval(getKey(keyRes), MESSAGE_TYPE, tq, false), classOfT);
     }
 
     @Override
     public <T> T[] getSensorDataForInterval(int keyRes, TimeQuery tq, Class<T> classOfT) {
-        return wrapGson(getValuesForInterval(getKey(keyRes), SENSOR_DATA_TYPE, tq), classOfT);
+        return wrapGson(getValuesForInterval(getKey(keyRes), SENSOR_DATA_TYPE, tq, false), classOfT);
     }
 
     @Override
-    public JSONArray getMessagesForInterval(String key, TimeQuery tq) throws JSONException {
-        return wrapJson(getValuesForInterval(key, MESSAGE_TYPE, tq));
+    public JSONArray getMessagesForInterval(String key, TimeQuery tq, boolean withMetadata) throws JSONException {
+        return wrapJson(getValuesForInterval(key, MESSAGE_TYPE, tq, withMetadata), withMetadata);
     }
 
     @Override
-    public JSONArray getSensorDataForInterval(String key, TimeQuery tq) throws JSONException {
-        return wrapJson(getValuesForInterval(key, SENSOR_DATA_TYPE, tq));
+    public JSONArray getSensorDataForInterval(String key, TimeQuery tq, boolean withMetadata) throws JSONException {
+        return wrapJson(getValuesForInterval(key, SENSOR_DATA_TYPE, tq, withMetadata), withMetadata);
     }
 
-    public String[] getValuesForInterval(String key, String type, TimeQuery tq){
+    public Object[] getValuesForInterval(String key, String type, TimeQuery tq, boolean withMetadata) {
         /*
          * Note: the first getKey(key) is the key of the message (e.g. 'background/location').
          * The second getKey(tq.key) is the key of the time query (e.g. 'write_ts')
          */
-        String queryString = "SELECT "+KEY_DATA+" FROM "+TABLE_USER_CACHE+
+        String queryString = "SELECT "+getSelCols(withMetadata)+" FROM "+TABLE_USER_CACHE+
                 " WHERE "+KEY_KEY+" = '"+ key + "'"+
                 " AND "+KEY_TYPE+" = '" + type + "'" +
                 " AND "+ tq.key +" >= "+tq.startTs+
@@ -258,49 +299,59 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor resultCursor = db.rawQuery(queryString, null);
 
-        String[] result = getValuesFromCursor(resultCursor);
+        Object[] result = getValuesFromCursor(resultCursor, withMetadata);
         return result;
     }
 
     @Override
     public <T> T[] getLastMessages(int key, int nEntries, Class<T> classOfT) {
-        return wrapGson(getLastValues(getKey(key), MESSAGE_TYPE, nEntries), classOfT);
+        return wrapGson(getLastValues(getKey(key), MESSAGE_TYPE, nEntries, false), classOfT);
     }
 
     @Override
     public <T> T[] getLastSensorData(int key, int nEntries, Class<T> classOfT) {
-        return wrapGson(getLastValues(getKey(key), SENSOR_DATA_TYPE, nEntries), classOfT);
+        return wrapGson(getLastValues(getKey(key), SENSOR_DATA_TYPE, nEntries, false), classOfT);
     }
 
-    public JSONArray getLastMessages(String key, int nEntries) throws JSONException {
-        return wrapJson(getLastValues(key, MESSAGE_TYPE, nEntries));
+    public JSONArray getLastMessages(String key, int nEntries, boolean withMetadata) throws JSONException {
+        return wrapJson(getLastValues(key, MESSAGE_TYPE, nEntries, withMetadata), withMetadata);
     }
 
-    public JSONArray getLastSensorData(String key, int nEntries) throws JSONException {
-        return wrapJson(getLastValues(key, SENSOR_DATA_TYPE, nEntries));
+    public JSONArray getLastSensorData(String key, int nEntries, boolean withMetadata) throws JSONException {
+        return wrapJson(getLastValues(key, SENSOR_DATA_TYPE, nEntries, withMetadata), withMetadata);
     }
 
-    public String[] getLastValues(String key, String type, int nEntries) {
-        String queryString = "SELECT "+KEY_DATA+" FROM "+TABLE_USER_CACHE+
+    public Object[] getLastValues(String key, String type, int nEntries, boolean withMetadata) {
+        String queryString = "SELECT "+getSelCols(withMetadata)+" FROM "+TABLE_USER_CACHE+
                 " WHERE "+KEY_KEY+" = '"+ key + "'"+
                 " AND "+KEY_TYPE+" = '" + type + "'" +
                 " ORDER BY write_ts DESC  LIMIT "+nEntries;
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor resultCursor = db.rawQuery(queryString, null);
 
-        String[] valueList = getValuesFromCursor(resultCursor);
+        Object[] valueList = getValuesFromCursor(resultCursor, withMetadata);
         return valueList;
     }
 
-    private String[] getValuesFromCursor(Cursor resultCursor) {
+    private Object[] getValuesFromCursor(Cursor resultCursor, boolean withMetadata) {
         int resultCount = resultCursor.getCount();
-        String[] resultArray = new String[resultCount];
+        Object[] resultArray = new Object[resultCount];
         // System.out.println("resultArray is " + resultArray);
         if (resultCursor.moveToFirst()) {
             for (int i = 0; i < resultCount; i++) {
+                if (withMetadata) {
+                    try {
+                        JSONObject entry = getEntry(resultCursor);
+                        resultArray[i] = entry;
+                    } catch (JSONException e) {
+                        Log.e(cachedCtx, TAG, "Error " + e + " while converting entry at index " + i
+                                + " to JSON, skipping it");
+                    }
+                } else {
                 String data = resultCursor.getString(0);
                 // System.out.println("data = "+data);
                 resultArray[i] = data;
+                }
                 resultCursor.moveToNext();
             }
         }
@@ -318,7 +369,20 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     @Override
     public void clearEntries(TimeQuery tq) {
         Log.d(cachedCtx, TAG, "Clearing entries for timequery " + tq);
+        // This clears all non-document data corresponding to this sync interval
+        SQLiteDatabase db = this.getWritableDatabase();
+        String whereString = tq.key + " > ? AND " + tq.key + " < ? "+
+                " AND "+KEY_TYPE+" != '"+RW_DOCUMENT_TYPE+"'" +
+                " AND "+KEY_TYPE+" != '"+DOCUMENT_TYPE+"'";
+        String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
+        Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
+        // SQLiteDatabase db = this.getWritableDatabase();
+        int delEntries = db.delete(TABLE_USER_CACHE, whereString, whereArgs);
+        Log.i(cachedCtx, TAG, "Deleted " + delEntries + " non-document entries");
 
+    }
+
+    public void clearSupersededRWDocs(TimeQuery tq) {
         // First, we delete those rw-documents that have been superceded by a real document
         // We cannot use the delete method easily because we want to join the usercache table to itself
         // We could retrieve all rw documents and iterate through them to delete but that seems less
@@ -330,31 +394,42 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         // WHERE (B.KEY_TYPE == 'RW_DOCUMENT_TYPE' AND A.KEY_TYPE == 'DOCUMENT_TYPE' AND A.KEY_WRITE_TS > B.KEY_WRITE_TS))
 
         SQLiteDatabase db = this.getWritableDatabase();
-        String rwDocDeleteQuery = "DELETE FROM " + TABLE_USER_CACHE +" WHERE "+KEY_WRITE_TS+
-                " IN (SELECT B."+KEY_WRITE_TS+" FROM "+
-                TABLE_USER_CACHE + " A JOIN " + TABLE_USER_CACHE+" B "+
-                " on B."+KEY_KEY +" = A."+KEY_KEY +
-                " WHERE (B."+KEY_TYPE+" = '"+RW_DOCUMENT_TYPE+"' AND A."+KEY_TYPE+" = '"+DOCUMENT_TYPE+"'"+
-                " AND A."+KEY_WRITE_TS+" > B."+KEY_WRITE_TS+"))";
-        Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using "+rwDocDeleteQuery);
-        db.rawQuery(rwDocDeleteQuery, null);
-
-        // This clears everything except the read-write documents
-        String whereString = tq.key + " > ? AND " + tq.key + " < ? "+
-                " AND "+KEY_TYPE+" != '"+RW_DOCUMENT_TYPE+"'";
-        String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
-        Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
-        // SQLiteDatabase db = this.getWritableDatabase();
-        db.delete(TABLE_USER_CACHE, whereString, whereArgs);
-
-        /*
-        if (resultCount > 0) {
-            SQLiteDatabase delDB = this.getWritableDatabase();
-            String rwDocDeleteQuery = "DELETE FROM " + TABLE_USER_CACHE + " WHERE " + KEY_WRITE_TS + inString;
-            Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using " + rwDocDeleteQuery);
-            delDB.rawQuery(rwDocDeleteQuery, null);
+        String checkQuery = "SELECT DISTINCT("+KEY_KEY+") FROM "+TABLE_USER_CACHE
+                +" WHERE "+KEY_TYPE+" = '"+RW_DOCUMENT_TYPE+"'";
+        Cursor checkCursor = db.rawQuery(checkQuery, null);
+        Object[] rwKeys = getValuesFromCursor(checkCursor, false);
+        for (int i=0; i < rwKeys.length; i++) {
+            String currKey = (String)rwKeys[i];
+            String rwDocDeleteWhereQuery = KEY_TYPE+
+                    " = '"+RW_DOCUMENT_TYPE+"' AND "+KEY_WRITE_TS+
+                    " < MIN("+(long)tq.getEndTs()+", (SELECT MAX("+KEY_WRITE_TS+") FROM "+
+                    TABLE_USER_CACHE + " WHERE (" + KEY_KEY+" = '"+currKey+"' AND "+
+                    KEY_TYPE+" = '"+RW_DOCUMENT_TYPE+"')))";
+            Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using "+rwDocDeleteWhereQuery);
+            int delEntries = db.delete(TABLE_USER_CACHE, rwDocDeleteWhereQuery, null);
+            Log.i(cachedCtx, TAG, "Deleted " + delEntries + " rw-document entries");
         }
-        */
+    }
+
+    public void clearObsoleteDocs(TimeQuery tq) {
+        // Now, clear all documents. If the documents are still valid, they will be
+        // pulled from the server. If they are not, they should be cleared up so that
+        // we don't grow forever.
+        // See https://github.com/e-mission/cordova-usercache/issues/24
+        SQLiteDatabase db = this.getWritableDatabase();
+        String whereDocString = KEY_TYPE + " = '" + DOCUMENT_TYPE + "'";
+        Log.d(cachedCtx, TAG, "Args =  " + whereDocString);
+        // SQLiteDatabase db = this.getWritableDatabase();
+        int delDocs = db.delete(TABLE_USER_CACHE, whereDocString, null);
+        Log.i(cachedCtx, TAG, "Deleted " + delDocs + " document entries");
+        }
+
+    public void checkAfterPull() {
+        SQLiteDatabase db = this.getWritableDatabase();
+        String checkQuery = "SELECT "+KEY_KEY+" from userCache";
+        Cursor queryResult = db.rawQuery(checkQuery, null);
+        Object[] rwKeys = getValuesFromCursor(queryResult, false);
+        Log.i(cachedCtx, TAG, "After clear complete, cache has "+Arrays.toString(rwKeys)+" entries");
     }
 
     @Override
@@ -499,6 +574,39 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     /*
      * Return a string version of the messages and rw documents that need to be sent to the server.
      */
+    private JSONObject getEntry(Cursor queryVal) throws JSONException {
+        Metadata md = new Metadata();
+        md.setWrite_ts(queryVal.getDouble(0));
+        md.setRead_ts(queryVal.getDouble(1));
+        md.setTimeZone(queryVal.getString(2));
+        md.setType(queryVal.getString(3));
+        md.setKey(queryVal.getString(4));
+        md.setPlugin(queryVal.getString(5));
+        String dataStr = queryVal.getString(6);
+        /*
+         * I used to have a GSON wrapper here called "Entry" which encapsulated the metadata
+         * and the data. However, that didn't really work because it was unclear what type
+         * the data was.
+         *
+         * If we assumed that the data was a string, then GSON would escape and encode it
+         * during serialization (e.g. {"data":"{\"mProvider\":\"TEST\",\"mResults\":[0.0,0.0],\"mAccuracy\":5.5,
+         * or {"data":"[\u0027accelerometer\u0027, \u0027gyrometer\u0027, \u0027linear_accelerometer\u0027]
+         * , and expect an encoded string during deserialization.
+         *
+         * This is not consistent with the server, which returns actual JSON in the data, not a string.
+         *
+         * We could attempt to overcome this by assuming that the data is an object, not a string. But in that case,
+         * it is not clear how it would be deserialized, since we wouldn't know what class it was.
+         *
+         * So we are going to return a raw JSON object here instead of a GSONed object. That will also allow us to
+         * put it into the right wrapper object (phone_to_server or server_to_phone).
+         */
+        JSONObject entry = new JSONObject();
+        entry.put(METADATA_TAG, new JSONObject(new Gson().toJson(md)));
+        entry.put(DATA_TAG, new JSONObject(dataStr));
+            // Log.d(cachedCtx, TAG, "For row " + i + ", about to send string " + entry.toString());
+        return entry;
+    }
 
     public JSONArray sync_phone_to_server() {
         double lastTripEndTs = getLastTs();
@@ -530,46 +638,18 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         // in which case we return the empty JSONArray, to be consistent.
         if (queryVal.moveToFirst()) {
             for (int i = 0; i < resultCount; i++) {
-                Metadata md = new Metadata();
-                md.setWrite_ts(queryVal.getDouble(0));
-                md.setRead_ts(queryVal.getDouble(1));
-                md.setTimeZone(queryVal.getString(2));
-                md.setType(queryVal.getString(3));
-                md.setKey(queryVal.getString(4));
-                md.setPlugin(queryVal.getString(5));
-                String dataStr = queryVal.getString(6);
+                try {
+                    JSONObject entry = getEntry(queryVal);
+                    JSONObject md = entry.getJSONObject(METADATA_TAG);
                 if (i % 500 == 0) {
-                    Log.d(cachedCtx, TAG, "Reading entry = " + i+" with key "+md.getKey()
-                            + " and write_ts "+md.getWrite_ts());
+                        Log.d(cachedCtx, TAG, "Reading entry = " + i+" with key "+md.getString("key")
+                                + " and write_ts "+md.getDouble("write_ts"));
                 }
 
-                /*
-                 * I used to have a GSON wrapper here called "Entry" which encapsulated the metadata
-                 * and the data. However, that didn't really work because it was unclear what type
-                 * the data was.
-                 *
-                 * If we assumed that the data was a string, then GSON would escape and encode it
-                 * during serialization (e.g. {"data":"{\"mProvider\":\"TEST\",\"mResults\":[0.0,0.0],\"mAccuracy\":5.5,
-                 * or {"data":"[\u0027accelerometer\u0027, \u0027gyrometer\u0027, \u0027linear_accelerometer\u0027]
-                 * , and expect an encoded string during deserialization.
-                 *
-                 * This is not consistent with the server, which returns actual JSON in the data, not a string.
-                 *
-                 * We could attempt to overcome this by assuming that the data is an object, not a string. But in that case,
-                 * it is not clear how it would be deserialized, since we wouldn't know what class it was.
-                 *
-                 * So we are going to return a raw JSON object here instead of a GSONed object. That will also allow us to
-                 * put it into the right wrapper object (phone_to_server or server_to_phone).
-                 */
-                try {
-                JSONObject entry = new JSONObject();
-                entry.put(METADATA_TAG, new JSONObject(new Gson().toJson(md)));
-                entry.put(DATA_TAG, new JSONObject(dataStr));
-                // Log.d(cachedCtx, TAG, "For row " + i + ", about to send string " + entry.toString());
                 entryArray.put(entry);
                 queryVal.moveToNext();
                 } catch (JSONException e) {
-                    Log.e(cachedCtx, TAG, "Error " + e + " while converting data string " + dataStr + " to JSON, skipping it");
+                    Log.e(cachedCtx, TAG, "Error " + e + " while converting data string " + queryVal.getString(6) + " to JSON, skipping it");
                     // TODO: Re-enable once we resolve
                     // https://github.com/e-mission/cordova-usercache/issues/7
                     // putErrorValue(md, dataStr);

@@ -34,50 +34,47 @@ public class UserCachePlugin extends CordovaPlugin {
         Context ctxt = cordova.getActivity();
         if (action.equals("getDocument")) {
             final String documentKey = data.getString(0);
-            String docStr = UserCacheFactory.getUserCache(ctxt).getDocument(documentKey);
-            if (docStr == null) {
-                // Cordova doesn't like us to return with an empty objectA
-                // because then we get an NPE while initializing the result
-                // https://github.com/apache/cordova-android/blob/457c5b8b3b694265c991b456b15015741ade5014/framework/src/org/apache/cordova/PluginResult.java#L52
-                callbackContext.success(new JSONObject());
-            } else {
+            final boolean withMetadata = data.getBoolean(1);
+            Object retVal = UserCacheFactory.getUserCache(ctxt).getDocument(documentKey, withMetadata);
                 try {
-                    callbackContext.success(new JSONObject(docStr));
-                } catch (JSONException e) {
-                    System.out.println("document was not a JSONObject, trying JSONArray");
-                    callbackContext.success(new JSONArray(docStr));
-                }
+                callbackContext.success((JSONObject) retVal);
+            } catch (ClassCastException e) {
+                callbackContext.success((JSONArray) retVal);
             }
             return true;
         } else if (action.equals("getSensorDataForInterval")) {
             final String key = data.getString(0);
             final JSONObject tqJsonObject = data.getJSONObject(1);
+            final boolean withMetadata = data.getBoolean(2);
             final UserCache.TimeQuery timeQuery = new Gson().fromJson(tqJsonObject.toString(), UserCache.TimeQuery.class);
             JSONArray result = UserCacheFactory.getUserCache(ctxt)
-                    .getSensorDataForInterval(key, timeQuery);
+                    .getSensorDataForInterval(key, timeQuery, withMetadata);
             callbackContext.success(result);
             return true;
         } else if (action.equals("getMessagesForInterval")) {
             final String key = data.getString(0);
             final JSONObject tqJsonObject = data.getJSONObject(1);
+            final boolean withMetadata = data.getBoolean(2);
             final UserCache.TimeQuery timeQuery = new Gson().fromJson(tqJsonObject.toString(),
                     UserCache.TimeQuery.class);
             JSONArray result = UserCacheFactory.getUserCache(ctxt)
-                    .getMessagesForInterval(key, timeQuery);
+                    .getMessagesForInterval(key, timeQuery, withMetadata);
             callbackContext.success(result);
             return true;
         } else if (action.equals("getLastMessages")) {
             final String key = data.getString(0);
             final int nEntries = data.getInt(1);
+            final boolean withMetadata = data.getBoolean(2);
             JSONArray result = UserCacheFactory.getUserCache(ctxt)
-                    .getLastMessages(key, nEntries);
+                    .getLastMessages(key, nEntries, withMetadata);
             callbackContext.success(result);
             return true;
         } else if (action.equals("getLastSensorData")) {
             final String key = data.getString(0);
             final int nEntries = data.getInt(1);
+            final boolean withMetadata = data.getBoolean(2);
             JSONArray result = UserCacheFactory.getUserCache(ctxt)
-                    .getLastSensorData(key, nEntries);
+                    .getLastSensorData(key, nEntries, withMetadata);
             callbackContext.success(result);
             return true;
         } else if (action.equals("putMessage")) {
