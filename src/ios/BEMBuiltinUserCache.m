@@ -657,9 +657,9 @@ static BuiltinUserCache *_database;
     for (int i=0; i < docResults.count; i++) {
         NSString* currKey = docResults[i];
         // DELETE FROM TABLE_USER_CACHE WHERE type = 'rw-document) AND
-        // write_ts < (SELECT MAX(write_ts) FROM userCache WHERE (key = '...' AND TYPE = 'rw-document'))
-        NSString* rwDocDeleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ = '%@' AND %@ < (SELECT MAX(%@) FROM %@ WHERE (%@ = '%@' AND %@ = '%@'))",
-                                      TABLE_USER_CACHE, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_WRITE_TS, KEY_WRITE_TS, TABLE_USER_CACHE, KEY_KEY, currKey, KEY_TYPE, RW_DOCUMENT_TYPE];
+        // write_ts < MIN(tq.endTs, (SELECT MAX(write_ts) FROM userCache WHERE (key = '...' AND TYPE = 'rw-document')))
+        NSString* rwDocDeleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ = '%@' AND %@ < MIN(%.0f, (SELECT MAX(%@) FROM %@ WHERE (%@ = '%@' AND %@ = '%@')))",
+                                      TABLE_USER_CACHE, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_WRITE_TS, tq.endTs, KEY_WRITE_TS, TABLE_USER_CACHE, KEY_KEY, currKey, KEY_TYPE, RW_DOCUMENT_TYPE];
     [LocalNotificationManager addNotification:[NSString stringWithFormat:@"rwDocDeleteQuery = %@", rwDocDeleteQuery] showUI:FALSE];
     [self clearQuery:rwDocDeleteQuery];
     }
