@@ -636,22 +636,51 @@ static BuiltinUserCache *_database;
  */
 
 - (void)clearEntries:(TimeQuery*)tq {
-    // Also, clear all rw-documents that have been superseded by a document sent from the server
-    // DELETE FROM TABLE_USER_CACHE WHERE write_ts IN (SELECT B.write_ts FROM TABLE_USER_CACHE A JOIN TABLE_USER_CACHE B
-    // on B.KEY_KEY == A.KEY_KEY
-    // WHERE (B.KEY_TYPE == 'RW_DOCUMENT_TYPE' AND A.KEY_TYPE == 'DOCUMENT_TYPE' AND A.KEY_WRITE_TS > B.KEY_WRITE_TS))
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"Clearing entries for timequery %f -> %f",
+                                               tq.startTs, tq.endTs] showUI:FALSE];
+    // Don't delete read-write documents just yet - they will be deleted when we get the overriden document
+    NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ > %f AND %@ < %f AND %@ != '%@' AND %@ != '%@')",
+                             TABLE_USER_CACHE, tq.key, tq.startTs, tq.key, tq.endTs, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_TYPE, DOCUMENT_TYPE];
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"deleteQuery = %@", deleteQuery] showUI:FALSE];
+    [self clearQuery:deleteQuery];
+}
+
+- (void) clearSupersededRWDocs:(TimeQuery*) tq {
+    // Also, clear all rw-documents that have been superseded by other rw-documents on the phone
+    // in particular, always retain the most recent rw document and do not delete it, even if we get a document
+    // from the server for it.
     [LocalNotificationManager addNotification:[NSString stringWithFormat:@"clearing overridden rw-documents"] showUI:FALSE];
-    NSString* rwDocDeleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ IN (SELECT B.%@ FROM %@ A JOIN %@ B on B.%@ = A.%@ WHERE (B.%@ = '%@' AND A.%@ = '%@' AND A.%@ > B.%@))",
-                             TABLE_USER_CACHE, KEY_WRITE_TS, KEY_WRITE_TS, TABLE_USER_CACHE, TABLE_USER_CACHE,
-                                  KEY_KEY, KEY_KEY, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_TYPE, DOCUMENT_TYPE, KEY_WRITE_TS, KEY_WRITE_TS];
+    // SELECT DISTINCT(key) FROM userCache WHERE type = 'rw-document';
+    NSString* checkQuery = [NSString stringWithFormat:@"SELECT DISTINCT(%@) FROM %@ WHERE %@ = '%@'",
+                            KEY_KEY, TABLE_USER_CACHE, KEY_TYPE, RW_DOCUMENT_TYPE];
+    NSArray* docResults = [self readSelectResults:checkQuery withMetadata:NO];
+    for (int i=0; i < docResults.count; i++) {
+        NSString* currKey = docResults[i];
+        // DELETE FROM TABLE_USER_CACHE WHERE type = 'rw-document) AND
+        // write_ts < (SELECT MAX(write_ts) FROM userCache WHERE (key = '...' AND TYPE = 'rw-document'))
+        NSString* rwDocDeleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ = '%@' AND %@ < (SELECT MAX(%@) FROM %@ WHERE (%@ = '%@' AND %@ = '%@'))",
+                                      TABLE_USER_CACHE, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_WRITE_TS, KEY_WRITE_TS, TABLE_USER_CACHE, KEY_KEY, currKey, KEY_TYPE, RW_DOCUMENT_TYPE];
     [LocalNotificationManager addNotification:[NSString stringWithFormat:@"rwDocDeleteQuery = %@", rwDocDeleteQuery] showUI:FALSE];
     [self clearQuery:rwDocDeleteQuery];
+    }
+}
 
-    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"Clearing entries for timequery %@", tq] showUI:FALSE];
-    // Don't delete read-write documents just yet - they will be deleted when we get the overriden document
-    NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ > %f AND %@ < %f AND %@ != '%@')",
-                             TABLE_USER_CACHE, tq.key, tq.startTs, tq.key, tq.endTs, KEY_TYPE, RW_DOCUMENT_TYPE];
-    [self clearQuery:deleteQuery];
+- (void) clearObsoleteDocs:(TimeQuery*)tq {
+    // Now, clear all documents. If the documents are still valid, they will be
+    // pulled from the server. If they are not, they should be cleared up so that
+    // we don't grow forever.
+    // See https://github.com/e-mission/cordova-usercache/issues/24
+    
+    NSString* deleteDocQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ = '%@'",
+                                TABLE_USER_CACHE, KEY_TYPE, DOCUMENT_TYPE];
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"deleteDocQuery = %@", deleteDocQuery] showUI:FALSE];
+    [self clearQuery:deleteDocQuery];
+}
+
+- (void) checkAfterPull {
+    NSString* checkQuery = [NSString stringWithFormat:@"SELECT DISTINCT(%@) FROM %@", KEY_KEY, TABLE_USER_CACHE];
+    NSArray* checkResults = [self readSelectResults:checkQuery withMetadata:NO];
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"After clear complete, cache has entries %@", [checkResults componentsJoinedByString:@", "]] showUI:FALSE];
 }
 
 - (void)invalidateCache:(TimeQuery *)tq

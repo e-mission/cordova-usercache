@@ -63,6 +63,9 @@
 + (NSDate*) getWriteTs:(NSDictionary*)entry;
 
 - (void) clearEntries:(TimeQuery*)tq;
+- (void) clearSupersededRWDocs:(TimeQuery*)tq;
+- (void) clearObsoleteDocs:(TimeQuery*)tq;
+- (void) checkAfterPull;
 - (void) invalidateCache:(TimeQuery*)tq;
 - (void) clear;
 @end

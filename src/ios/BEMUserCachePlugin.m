@@ -211,7 +211,13 @@
         NSDictionary* timequeryDoc = [command.arguments objectAtIndex:0];
         TimeQuery* timequery = [TimeQuery new];
         [DataUtils dictToWrapper:timequeryDoc wrapper:timequery];
+        // Clearing is now split up, but let's not bloat up the
+        // interface further. It is unclear when this will be
+        // ever called from the UI anyway, but let us just clear
+        // all three types of messages from the phone anyway
         [[BuiltinUserCache database] clearEntries:timequery];
+        [[BuiltinUserCache database] clearSupersededRWDocs:timequery];
+        [[BuiltinUserCache database] clearObsoleteDocs:timequery];
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK];
         [self.commandDelegate sendPluginResult:result callbackId:callbackId];

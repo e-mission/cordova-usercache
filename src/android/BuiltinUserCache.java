@@ -241,10 +241,13 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         }
     }
 
-    private <T> T[] wrapGson(String[] stringObjects, Class<T> classOfT) {
+    /*
+     * For the GSON case, there is no metadata, so we expect all the objects to be strings.
+     */
+    private <T> T[] wrapGson(Object[] stringObjects, Class<T> classOfT) {
         T[] resultArray = (T[]) Array.newInstance(classOfT, stringObjects.length);
         for (int i=0; i < stringObjects.length; i++) {
-            resultArray[i] = new Gson().fromJson(stringObjects[i], classOfT);
+            resultArray[i] = new Gson().fromJson((String)stringObjects[i], classOfT);
             }
         return resultArray;
         }
@@ -263,12 +266,12 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
 
     @Override
     public <T> T[] getMessagesForInterval(int keyRes, TimeQuery tq, Class<T> classOfT) {
-        return wrapGson((String[])getValuesForInterval(getKey(keyRes), MESSAGE_TYPE, tq, false), classOfT);
+        return wrapGson(getValuesForInterval(getKey(keyRes), MESSAGE_TYPE, tq, false), classOfT);
     }
 
     @Override
     public <T> T[] getSensorDataForInterval(int keyRes, TimeQuery tq, Class<T> classOfT) {
-        return wrapGson((String[])getValuesForInterval(getKey(keyRes), SENSOR_DATA_TYPE, tq, false), classOfT);
+        return wrapGson(getValuesForInterval(getKey(keyRes), SENSOR_DATA_TYPE, tq, false), classOfT);
     }
 
     @Override
@@ -302,12 +305,12 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
 
     @Override
     public <T> T[] getLastMessages(int key, int nEntries, Class<T> classOfT) {
-        return wrapGson((String[])getLastValues(getKey(key), MESSAGE_TYPE, nEntries, false), classOfT);
+        return wrapGson(getLastValues(getKey(key), MESSAGE_TYPE, nEntries, false), classOfT);
     }
 
     @Override
     public <T> T[] getLastSensorData(int key, int nEntries, Class<T> classOfT) {
-        return wrapGson((String[])getLastValues(getKey(key), SENSOR_DATA_TYPE, nEntries, false), classOfT);
+        return wrapGson(getLastValues(getKey(key), SENSOR_DATA_TYPE, nEntries, false), classOfT);
     }
 
     public JSONArray getLastMessages(String key, int nEntries, boolean withMetadata) throws JSONException {
@@ -366,7 +369,20 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     @Override
     public void clearEntries(TimeQuery tq) {
         Log.d(cachedCtx, TAG, "Clearing entries for timequery " + tq);
+        // This clears all non-document data corresponding to this sync interval
+        SQLiteDatabase db = this.getWritableDatabase();
+        String whereString = tq.key + " > ? AND " + tq.key + " < ? "+
+                " AND "+KEY_TYPE+" != '"+RW_DOCUMENT_TYPE+"'" +
+                " AND "+KEY_TYPE+" != '"+DOCUMENT_TYPE+"'";
+        String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
+        Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
+        // SQLiteDatabase db = this.getWritableDatabase();
+        int delEntries = db.delete(TABLE_USER_CACHE, whereString, whereArgs);
+        Log.i(cachedCtx, TAG, "Deleted " + delEntries + " non-document entries");
 
+    }
+
+    public void clearSupersededRWDocs(TimeQuery tq) {
         // First, we delete those rw-documents that have been superceded by a real document
         // We cannot use the delete method easily because we want to join the usercache table to itself
         // We could retrieve all rw documents and iterate through them to delete but that seems less
@@ -378,31 +394,42 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         // WHERE (B.KEY_TYPE == 'RW_DOCUMENT_TYPE' AND A.KEY_TYPE == 'DOCUMENT_TYPE' AND A.KEY_WRITE_TS > B.KEY_WRITE_TS))
 
         SQLiteDatabase db = this.getWritableDatabase();
-        String rwDocDeleteQuery = "DELETE FROM " + TABLE_USER_CACHE +" WHERE "+KEY_WRITE_TS+
-                " IN (SELECT B."+KEY_WRITE_TS+" FROM "+
-                TABLE_USER_CACHE + " A JOIN " + TABLE_USER_CACHE+" B "+
-                " on B."+KEY_KEY +" = A."+KEY_KEY +
-                " WHERE (B."+KEY_TYPE+" = '"+RW_DOCUMENT_TYPE+"' AND A."+KEY_TYPE+" = '"+DOCUMENT_TYPE+"'"+
-                " AND A."+KEY_WRITE_TS+" > B."+KEY_WRITE_TS+"))";
-        Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using "+rwDocDeleteQuery);
-        db.rawQuery(rwDocDeleteQuery, null);
-
-        // This clears everything except the read-write documents
-        String whereString = tq.key + " > ? AND " + tq.key + " < ? "+
-                " AND "+KEY_TYPE+" != '"+RW_DOCUMENT_TYPE+"'";
-        String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
-        Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
-        // SQLiteDatabase db = this.getWritableDatabase();
-        db.delete(TABLE_USER_CACHE, whereString, whereArgs);
-
-        /*
-        if (resultCount > 0) {
-            SQLiteDatabase delDB = this.getWritableDatabase();
-            String rwDocDeleteQuery = "DELETE FROM " + TABLE_USER_CACHE + " WHERE " + KEY_WRITE_TS + inString;
-            Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using " + rwDocDeleteQuery);
-            delDB.rawQuery(rwDocDeleteQuery, null);
+        String checkQuery = "SELECT DISTINCT("+KEY_KEY+") FROM "+TABLE_USER_CACHE
+                +" WHERE "+KEY_TYPE+" = '"+RW_DOCUMENT_TYPE+"'";
+        Cursor checkCursor = db.rawQuery(checkQuery, null);
+        Object[] rwKeys = getValuesFromCursor(checkCursor, false);
+        for (int i=0; i < rwKeys.length; i++) {
+            String currKey = (String)rwKeys[i];
+            String rwDocDeleteWhereQuery = KEY_TYPE+
+                    " = '"+RW_DOCUMENT_TYPE+"' AND "+KEY_WRITE_TS+
+                    " < (SELECT MAX("+KEY_WRITE_TS+") FROM "+
+                    TABLE_USER_CACHE + " WHERE (" + KEY_KEY+" = '"+currKey+"' AND "+
+                    KEY_TYPE+" = '"+RW_DOCUMENT_TYPE+"'))";
+            Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using "+rwDocDeleteWhereQuery);
+            int delEntries = db.delete(TABLE_USER_CACHE, rwDocDeleteWhereQuery, null);
+            Log.i(cachedCtx, TAG, "Deleted " + delEntries + " rw-document entries");
         }
-        */
+    }
+
+    public void clearObsoleteDocs(TimeQuery tq) {
+        // Now, clear all documents. If the documents are still valid, they will be
+        // pulled from the server. If they are not, they should be cleared up so that
+        // we don't grow forever.
+        // See https://github.com/e-mission/cordova-usercache/issues/24
+        SQLiteDatabase db = this.getWritableDatabase();
+        String whereDocString = KEY_TYPE + " = '" + DOCUMENT_TYPE + "'";
+        Log.d(cachedCtx, TAG, "Args =  " + whereDocString);
+        // SQLiteDatabase db = this.getWritableDatabase();
+        int delDocs = db.delete(TABLE_USER_CACHE, whereDocString, null);
+        Log.i(cachedCtx, TAG, "Deleted " + delDocs + " document entries");
+        }
+
+    public void checkAfterPull() {
+        SQLiteDatabase db = this.getWritableDatabase();
+        String checkQuery = "SELECT "+KEY_KEY+" from userCache";
+        Cursor queryResult = db.rawQuery(checkQuery, null);
+        Object[] rwKeys = getValuesFromCursor(queryResult, false);
+        Log.i(cachedCtx, TAG, "After clear complete, cache has "+Arrays.toString(rwKeys)+" entries");
     }
 
     @Override
