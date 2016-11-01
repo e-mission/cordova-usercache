@@ -104,7 +104,7 @@ static BuiltinUserCache *_database;
 - (NSString*)getStatName:(NSString*)label {
     NSString* statName = [statsNamesDict objectForKey:label];
     if (statName == NULL) {
-        [NSException raise:@"unknown stat" format:@"stat %@ not defined in app_stats plist", label];
+        [NSException raise:@"unknown stat" format:@"stat %@ not defined in usercache plist", label];
     }
     return statName;
 }

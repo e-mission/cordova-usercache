@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>app_launched</key>
+	<string>app_launched</string>
+	<key>sync_push_list_size</key>
+	<string>sync_push_list_size</string>
+	<key>sync_pull_list_size</key>
+	<string>sync_pull_list_size</string>
+	<key>sync_duration</key>
+	<string>sync_duration</string>
+	<key>pull_duration</key>
+	<string>pull_duration</string>
+	<key>push_duration</key>
+	<string>push_duration</string>
+</dict>
+</plist>
