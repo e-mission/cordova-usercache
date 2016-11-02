@@ -9,5 +9,8 @@
     <string name="key.usercache.sync_config">config/sync_config</string>
     <string name="key.usercache.consent_config">config/consent</string>
     <string name="key.usercache.transition">statemachine/transition</string>
+    <string name="key.usercache.client_time">stats/client_time</string>
+    <string name="key.usercache.client_nav_event">stats/client_nav_event</string>
+    <string name="key.usercache.client_error">stats/client_error</string>
     <string name="metadata.usercache.write_ts">write_ts</string>
 </resources>
