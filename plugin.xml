@@ -32,7 +32,7 @@
     <source-file src="src/android/BuiltinUserCache.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
     <source-file src="src/android/UserCachePlugin.java" target-dir="src/edu/berkeley/eecs/emission/cordova/usercache"/>
     <resource-file src="res/android/usercachekeys.xml" target="res/values/usercachekeys.xml"/>
-    <resource-file src="res/android/app_stats.xml" target="res/values/usercachekeys.xml"/>
+    <resource-file src="res/android/app_stats.xml" target="res/values/app_stats.xml"/>
   </platform>
 
   <platform name="ios">
@@ -43,6 +43,8 @@
         <param name="onload" value="true"/>
       </feature>
     </config-file>
+
+    <framework src="libsqlite3.0.tbd"/>
 
     <header-file src="src/ios/BEMBuiltinUserCache.h"/>
     <source-file src="src/ios/BEMBuiltinUserCache.m"/>
