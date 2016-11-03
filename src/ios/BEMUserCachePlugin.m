@@ -148,7 +148,7 @@
         NSString* key = [[command arguments] objectAtIndex:0];
         NSDictionary* value = [command.arguments objectAtIndex:1];
 
-        [[BuiltinUserCache database] putMessage:key value:value];
+        [[BuiltinUserCache database] putMessage:key jsonValue:value];
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK];
         [self.commandDelegate sendPluginResult:result callbackId:callbackId];
@@ -169,7 +169,7 @@
         NSString* key = [[command arguments] objectAtIndex:0];
         NSDictionary* value = [command.arguments objectAtIndex:1];
         
-        [[BuiltinUserCache database] putReadWriteDocument:key value:value];
+        [[BuiltinUserCache database] putReadWriteDocument:key jsonValue:value];
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK];
         [self.commandDelegate sendPluginResult:result callbackId:callbackId];
@@ -190,7 +190,7 @@
         NSString* key = [[command arguments] objectAtIndex:0];
         NSDictionary* value = [command.arguments objectAtIndex:1];
         
-        [[BuiltinUserCache database] putSensorData:key value:value];
+        [[BuiltinUserCache database] putSensorData:key jsonValue:value];
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK];
         [self.commandDelegate sendPluginResult:result callbackId:callbackId];

@@ -4,6 +4,8 @@
 <dict>
 	<key>app_launched</key>
 	<string>app_launched</string>
+	<key>sync_launched</key>
+	<string>sync_launched</string>
 	<key>sync_push_list_size</key>
 	<string>sync_push_list_size</string>
 	<key>sync_pull_list_size</key>
