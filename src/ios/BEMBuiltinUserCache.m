@@ -656,6 +656,13 @@ static BuiltinUserCache *_database;
     NSArray* docResults = [self readSelectResults:checkQuery withMetadata:NO];
     for (int i=0; i < docResults.count; i++) {
         NSString* currKey = docResults[i];
+        NSString* selectQuery = [NSString stringWithFormat:@"SELECT * FROM %@ WHERE %@ = '%@' AND %@ < MIN(%.0f, (SELECT MAX(%@) FROM %@ WHERE (%@ = '%@' AND %@ = '%@')))",
+                                 TABLE_USER_CACHE, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_WRITE_TS, tq.endTs, KEY_WRITE_TS, TABLE_USER_CACHE, KEY_KEY, currKey, KEY_TYPE, RW_DOCUMENT_TYPE];
+        [LocalNotificationManager addNotification:[NSString stringWithFormat:@"selectQuery = %@", selectQuery] showUI:FALSE];
+        NSArray* toDeleteDocs = [self readSelectResults:selectQuery withMetadata:YES];
+        for (int j = 0; j < toDeleteDocs.count; j++) {
+            [LocalNotificationManager addNotification:[NSString stringWithFormat:@"At index %d, about to delete = %@", j, toDeleteDocs[j]] showUI:FALSE];
+        }
         // DELETE FROM TABLE_USER_CACHE WHERE type = 'rw-document) AND
         // write_ts < MIN(tq.endTs, (SELECT MAX(write_ts) FROM userCache WHERE (key = '...' AND TYPE = 'rw-document')))
         NSString* rwDocDeleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ = '%@' AND %@ < MIN(%.0f, (SELECT MAX(%@) FROM %@ WHERE (%@ = '%@' AND %@ = '%@')))",
