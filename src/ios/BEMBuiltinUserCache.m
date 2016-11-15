@@ -656,6 +656,13 @@ static BuiltinUserCache *_database;
     NSArray* docResults = [self readSelectResults:checkQuery withMetadata:NO];
     for (int i=0; i < docResults.count; i++) {
         NSString* currKey = docResults[i];
+        NSString* selectQuery = [NSString stringWithFormat:@"SELECT * FROM %@ WHERE %@ = '%@' AND %@ < MIN(%.0f, (SELECT MAX(%@) FROM %@ WHERE (%@ = '%@' AND %@ = '%@')))",
+                                 TABLE_USER_CACHE, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_WRITE_TS, tq.endTs, KEY_WRITE_TS, TABLE_USER_CACHE, KEY_KEY, currKey, KEY_TYPE, RW_DOCUMENT_TYPE];
+        [LocalNotificationManager addNotification:[NSString stringWithFormat:@"selectQuery = %@", selectQuery] showUI:FALSE];
+        NSArray* toDeleteDocs = [self readSelectResults:selectQuery withMetadata:YES];
+        for (int j = 0; j < toDeleteDocs.count; j++) {
+            [LocalNotificationManager addNotification:[NSString stringWithFormat:@"At index %d, about to delete = %@", j, toDeleteDocs[j]] showUI:FALSE];
+        }
         // DELETE FROM TABLE_USER_CACHE WHERE type = 'rw-document) AND
         // write_ts < MIN(tq.endTs, (SELECT MAX(write_ts) FROM userCache WHERE (key = '...' AND TYPE = 'rw-document')))
         NSString* rwDocDeleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ = '%@' AND %@ < MIN(%.0f, (SELECT MAX(%@) FROM %@ WHERE (%@ = '%@' AND %@ = '%@')))",
@@ -665,12 +672,47 @@ static BuiltinUserCache *_database;
     }
 }
 
+/*
+ * Hack to ensure that we have an rw-document that cannot be deleted for every config. This should make existing installs become 
+ * similar to new installs and ensure that https://github.com/e-mission/cordova-jwt-auth/issues/8#issuecomment-260214971 does
+ * not recur.
+ *
+ * Therefore, it is sufficient to handle the existing possible config documents. This can be deleted after everybody has upgraded
+ * to the most recent version.
+ */
+
+- (void) convertConfigToRW:(TimeQuery*) tq {
+    NSArray* configKeys = @[@"config/consent", @"config/sync_config", @"config/sensor_config"];
+    for (int i = 0; i < configKeys.count; i++) {
+        NSString* currKey = configKeys[i];
+        [LocalNotificationManager addNotification:[NSString stringWithFormat:@"About to check rw state for config %@", currKey]];
+        // SELECT DATA FROM userCache WHERE KEY = currKey and TYPE = 'rw-document';
+        NSString* currQuery = [NSString stringWithFormat:@"SELECT * FROM %@ WHERE %@ = '%@' AND %@ = '%@'",
+                               TABLE_USER_CACHE, KEY_KEY, currKey, KEY_TYPE, @"rw-document"];
+        NSArray* checkResults = [self readSelectResults:currQuery withMetadata:YES];
+        if ([checkResults count] > 0) {
+            [LocalNotificationManager addNotification:[NSString stringWithFormat:@"Already have rw-document for key %@, nothing to fix", currKey]];
+        } else {
+            NSDictionary* currDoc = [self getDocument:currKey withMetadata:YES];
+            if (currDoc == NULL) {
+                [LocalNotificationManager addNotification:[NSString stringWithFormat:@"For key %@, found no document found either, skipping", currKey]];
+            } else {
+                [LocalNotificationManager addNotification:[NSString stringWithFormat:@"For key %@, found document with write_ts = %@, but not rw-document, changing...", currDoc[@"metadata"][@"write_ts"], currKey]];
+                [self putReadWriteDocument:currKey jsonValue:currDoc[KEY_DATA]];
+                // I could try to update the rw-document here to match the original write_ts, but then I'd have to write another SQL
+                // statement, adding complexity to what it essentially a one-time hack. I also don't remember whether the write_ts
+                // from the server was the same as the write_ts of the original rw-document. Let's just stick with this for now...
+            }
+        }
+    }
+}
+
 - (void) clearObsoleteDocs:(TimeQuery*)tq {
     // Now, clear all documents. If the documents are still valid, they will be
     // pulled from the server. If they are not, they should be cleared up so that
     // we don't grow forever.
     // See https://github.com/e-mission/cordova-usercache/issues/24
-    
+    [self convertConfigToRW:tq];
     NSString* deleteDocQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ = '%@'",
                                 TABLE_USER_CACHE, KEY_TYPE, DOCUMENT_TYPE];
     [LocalNotificationManager addNotification:[NSString stringWithFormat:@"deleteDocQuery = %@", deleteDocQuery] showUI:FALSE];
