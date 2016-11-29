@@ -400,9 +400,10 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         Object[] rwKeys = getValuesFromCursor(checkCursor, false);
         for (int i=0; i < rwKeys.length; i++) {
             String currKey = (String)rwKeys[i];
-            String rwDocDeleteWhereQuery = KEY_TYPE+
-                    " = '"+RW_DOCUMENT_TYPE+"' AND "+KEY_WRITE_TS+
-                    " < MIN("+(long)tq.getEndTs()+", (SELECT MAX("+KEY_WRITE_TS+") FROM "+
+            String rwDocDeleteWhereQuery = KEY_KEY + " = '" + currKey + "' AND "
+                    + KEY_TYPE + " = '"+RW_DOCUMENT_TYPE+"' AND "
+                    +KEY_WRITE_TS + " < MIN("+(long)tq.getEndTs()
+                        +", (SELECT MAX("+KEY_WRITE_TS+") FROM "+
                     TABLE_USER_CACHE + " WHERE (" + KEY_KEY+" = '"+currKey+"' AND "+
                     KEY_TYPE+" = '"+RW_DOCUMENT_TYPE+"')))";
             Log.d(cachedCtx, TAG, "Clearing obsolete RW-DOCUMENTS using "+rwDocDeleteWhereQuery);
