@@ -34,6 +34,7 @@
 #define MESSAGE_TYPE @"message"
 #define DOCUMENT_TYPE @"document"
 #define RW_DOCUMENT_TYPE @"rw-document"
+#define LOCAL_STORAGE_TYPE @"local-storage"
 
 
 #define DB_FILE_NAME @"userCacheDB"
@@ -364,7 +365,6 @@ static BuiltinUserCache *_database;
              withMetadata:withMetadata];
 }
 
-
 - (NSArray*) getLastValues:(NSString*) key nEntries:(int)nEntries
                       type:(NSString*)type withMetadata:(BOOL)withMetadata
 {
@@ -496,6 +496,33 @@ static BuiltinUserCache *_database;
 
 
 /*
+ * LocalStorage interface
+ */
+
+// These are the versions intended temporary configurations that need to be shared between
+// javascript and native. Functions as standard k-v store, no wrapper classes, no object interface.
+- (void)putLocalStorage:(NSString*)label jsonValue:(NSDictionary *)value {
+    [self putValue:label value:[DataUtils saveToJSONString:value] type:LOCAL_STORAGE_TYPE];
+}
+
+- (NSMutableDictionary*) getLocalStorage:(NSString*) key withMetadata:(BOOL)withMetadata {
+    TimeQuery* tq = [BuiltinUserCache getAllTimeQuery];
+    NSArray* wrappedJSON = [self wrapJSON:[self getValuesForInterval:key tq:tq type:LOCAL_STORAGE_TYPE withMetadata:withMetadata] withMetadata:withMetadata];
+    if ([wrappedJSON count] == 0) {
+        return NULL;
+    } else {
+        return [NSMutableDictionary dictionaryWithDictionary:[wrappedJSON objectAtIndex:0]];
+    }
+}
+
+- (void) removeLocalStorage:(NSString*) key {
+    NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ = '%@' AND %@ = '%@')",
+                             TABLE_USER_CACHE, KEY_KEY, key, KEY_TYPE, LOCAL_STORAGE_TYPE];
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"while removing local storage, deleteQuery = %@", deleteQuery] showUI:FALSE];
+    [self clearQuery:deleteQuery];
+}
+
+/*
  * Since we are using distance based filtering for iOS, and there is no reliable background sync, we push the data
  * only when we detect a trip end. If this is done through push notifications, we do so by looking to see if the
  * last location point was generated more than threshold ago. If this is done through visit detection, then we don't
@@ -618,6 +645,14 @@ static BuiltinUserCache *_database;
     return tq;
 }
 
++ (TimeQuery*) getAllTimeQuery {
+    TimeQuery* tq = [TimeQuery new];
+    tq.key = KEY_WRITE_TS;
+    tq.startTs = 0;
+    tq.endTs = [DataUtils dateToTs:[NSDate date]];
+    return tq;
+}
+
 + (NSString*) getTimezone:(NSDictionary*)entry {
     Metadata* md = [Metadata new];
     [DataUtils dictToWrapper:[entry objectForKey:METADATA_TAG] wrapper:md];
@@ -639,8 +674,8 @@ static BuiltinUserCache *_database;
     [LocalNotificationManager addNotification:[NSString stringWithFormat:@"Clearing entries for timequery %f -> %f",
                                                tq.startTs, tq.endTs] showUI:FALSE];
     // Don't delete read-write documents just yet - they will be deleted when we get the overriden document
-    NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ > %f AND %@ < %f AND %@ != '%@' AND %@ != '%@')",
-                             TABLE_USER_CACHE, tq.key, tq.startTs, tq.key, tq.endTs, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_TYPE, DOCUMENT_TYPE];
+    NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ > %f AND %@ < %f AND %@ != '%@' AND %@ != '%@' AND %@ != '%@')",
+                             TABLE_USER_CACHE, tq.key, tq.startTs, tq.key, tq.endTs, KEY_TYPE, RW_DOCUMENT_TYPE, KEY_TYPE, DOCUMENT_TYPE, KEY_TYPE, LOCAL_STORAGE_TYPE];
     [LocalNotificationManager addNotification:[NSString stringWithFormat:@"deleteQuery = %@", deleteQuery] showUI:FALSE];
     [self clearQuery:deleteQuery];
 }

@@ -65,6 +65,7 @@ public interface UserCache {
     public abstract void putMessage(String key, JSONObject value);
     public abstract void putReadWriteDocument(String key, JSONObject value);
 
+
     // Versions that return an object retrieved via GSON. These are intended for use with native code.
     public abstract <T> T[] getMessagesForInterval(int key, TimeQuery tq, Class<T> classOfT);
     public abstract <T> T[] getSensorDataForInterval(int key, TimeQuery tq, Class<T> classOfT);
@@ -88,11 +89,22 @@ public interface UserCache {
     public abstract JSONArray getLastSensorData(String key, int nEntries,
                                                 boolean withMetadata) throws JSONException;
 
+
+    /*
+     * Versions that retrieve temporary configurations that need to be shared between
+     * javascript and native. Functions as standard k-v store, no wrapper classes,
+     * so no object interface.
+     */
+
+    public abstract void putLocalStorage(String key, JSONObject value);
+    public abstract JSONObject getLocalStorage(String key, boolean withMetadata) throws JSONException;
+    public abstract void removeLocalStorage(String key);
         /**
          * Return the document that matches the specified key.
          * The class of T needs to be passed in, and an appropriate type will be reconstructed
          * and returned.
          */
+
     public abstract <T> T getDocument(int key, Class<T> classOfT);
     // Can be either JSONObject or JSONArray, and they don't have a common superclass other than
     // object

@@ -61,6 +61,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     private static final String MESSAGE_TYPE = "message";
     private static final String DOCUMENT_TYPE = "document";
     private static final String RW_DOCUMENT_TYPE = "rw-document";
+    private static final String LOCAL_STORAGE_TYPE = "local-storage";
 
     private Context cachedCtx;
     private static BuiltinUserCache database;
@@ -255,8 +256,10 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     private JSONArray wrapJson(Object[] stringOrEntryObjects, boolean withMetadata) throws JSONException {
         JSONArray resultArray = new JSONArray();
         for (int i=0; i < stringOrEntryObjects.length; i++) {
-            JSONObject currEntry = (JSONObject)stringOrEntryObjects[i];
-            if (!withMetadata) {
+            JSONObject currEntry;
+            if (withMetadata) {
+                currEntry = (JSONObject)stringOrEntryObjects[i];
+            } else {
                 currEntry = new JSONObject((String)stringOrEntryObjects[i]);
             }
             resultArray.put(currEntry);
@@ -313,10 +316,12 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         return wrapGson(getLastValues(getKey(key), SENSOR_DATA_TYPE, nEntries, false), classOfT);
     }
 
+    @Override
     public JSONArray getLastMessages(String key, int nEntries, boolean withMetadata) throws JSONException {
         return wrapJson(getLastValues(key, MESSAGE_TYPE, nEntries, withMetadata), withMetadata);
     }
 
+    @Override
     public JSONArray getLastSensorData(String key, int nEntries, boolean withMetadata) throws JSONException {
         return wrapJson(getLastValues(key, SENSOR_DATA_TYPE, nEntries, withMetadata), withMetadata);
     }
@@ -331,6 +336,32 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
 
         Object[] valueList = getValuesFromCursor(resultCursor, withMetadata);
         return valueList;
+    }
+
+    @Override
+    public JSONObject getLocalStorage(String key, boolean withMetadata) throws JSONException {
+        JSONArray wrappedArray = wrapJson(getValuesForInterval(key, LOCAL_STORAGE_TYPE, getAllTimeQuery(cachedCtx), withMetadata), withMetadata);
+        if (wrappedArray.length() == 0) {
+            return null;
+        } else {
+            return wrappedArray.getJSONObject(0);
+        }
+    }
+
+    @Override
+    public void putLocalStorage(String key, JSONObject value) {
+        putValue(key, value.toString(), LOCAL_STORAGE_TYPE);
+    }
+
+    @Override
+    public void removeLocalStorage(String key) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        String whereDocString = KEY_TYPE + " = '" + LOCAL_STORAGE_TYPE + "' AND "
+                + KEY_KEY + " = '" + key + "'";
+        Log.d(cachedCtx, TAG, "Args =  " + whereDocString);
+        // SQLiteDatabase db = this.getWritableDatabase();
+        int delDocs = db.delete(TABLE_USER_CACHE, whereDocString, null);
+        Log.i(cachedCtx, TAG, "in removeLocalStorage, deleted " + delDocs + " document entries");
     }
 
     private Object[] getValuesFromCursor(Cursor resultCursor, boolean withMetadata) {
@@ -373,7 +404,8 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         SQLiteDatabase db = this.getWritableDatabase();
         String whereString = tq.key + " > ? AND " + tq.key + " < ? "+
                 " AND "+KEY_TYPE+" != '"+RW_DOCUMENT_TYPE+"'" +
-                " AND "+KEY_TYPE+" != '"+DOCUMENT_TYPE+"'";
+                " AND "+KEY_TYPE+" != '"+DOCUMENT_TYPE+"'"+
+                " AND "+KEY_TYPE+" != '"+LOCAL_STORAGE_TYPE+"'";
         String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
         Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
         // SQLiteDatabase db = this.getWritableDatabase();
@@ -440,7 +472,8 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         SQLiteDatabase db = this.getWritableDatabase();
         // This clears everything except the read-write documents
         String whereString = tq.key + " > ? AND " + tq.key + " < ? "+
-                " AND "+KEY_TYPE+" == '"+DOCUMENT_TYPE+"'";
+                " AND ("+KEY_TYPE+" == '"+DOCUMENT_TYPE+"'"+
+                " OR "+KEY_TYPE+" == '"+LOCAL_STORAGE_TYPE+"')";
         String[] whereArgs = {String.valueOf(tq.startTs), String.valueOf(tq.endTs)};
         Log.d(cachedCtx, TAG, "Args =  " + whereString + " : " + Arrays.toString(whereArgs));
         // SQLiteDatabase db = this.getWritableDatabase();
@@ -702,6 +735,12 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         // Start slightly before and end slightly after to make sure that we get all entries
         UserCache.TimeQuery tq = new UserCache.TimeQuery(cachedContext.getString(R.string.metadata_usercache_write_ts),
                 start_ts - 1, end_ts + 1);
+        return tq;
+    }
+
+    public static UserCache.TimeQuery getAllTimeQuery(Context cachedContext) throws JSONException {
+        UserCache.TimeQuery tq = new UserCache.TimeQuery(cachedContext.getString(R.string.metadata_usercache_write_ts),
+                0, System.currentTimeMillis());
         return tq;
     }
 

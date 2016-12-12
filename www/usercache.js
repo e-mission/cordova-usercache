@@ -98,6 +98,24 @@ var UserCache = {
         });
     },
 
+    putLocalStorage: function(key, value) {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "putLocalStorage", [key, value]);
+        });
+    },
+
+    getLocalStorage: function(key, withMetadata) {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "getLocalStorage", [key, withMetadata]);
+        });
+    },
+
+    removeLocalStorage: function(key) {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "removeLocalStorage", [key]);
+        });
+    },
+
     // No putSensorData exposed through javascript since it is not intended for regularly sensed data
     clearAllEntries: function() {
         return UserCache.clearEntries(UserCache.getAllTimeQuery());

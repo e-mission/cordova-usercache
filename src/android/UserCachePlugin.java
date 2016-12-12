@@ -77,6 +77,14 @@ public class UserCachePlugin extends CordovaPlugin {
                     .getLastSensorData(key, nEntries, withMetadata);
             callbackContext.success(result);
             return true;
+        } else if (action.equals("getLocalStorage")) {
+            final String key = data.getString(0);
+            final int nEntries = data.getInt(1);
+            final boolean withMetadata = data.getBoolean(2);
+            JSONObject result = UserCacheFactory.getUserCache(ctxt)
+                    .getLocalStorage(key, withMetadata);
+            callbackContext.success(result);
+            return true;
         } else if (action.equals("putMessage")) {
             final String key = data.getString(0);
             final JSONObject msg = data.getJSONObject(1);
@@ -93,6 +101,25 @@ public class UserCachePlugin extends CordovaPlugin {
             final String key = data.getString(0);
             final JSONObject msg = data.getJSONObject(1);
             UserCacheFactory.getUserCache(ctxt).putSensorData(key, msg);
+            callbackContext.success();
+            return true;
+        } else if (action.equals("putLocalStorage")) {
+            final String key = data.getString(0);
+            final JSONObject msg = data.getJSONObject(1);
+            UserCacheFactory.getUserCache(ctxt).putLocalStorage(key, msg);
+            callbackContext.success();
+            return true;
+        } else if (action.equals("getLocalStorage")) {
+            final String key = data.getString(0);
+            final boolean withMetadata = data.getBoolean(1);
+            JSONObject result = UserCacheFactory.getUserCache(ctxt)
+                    .getLocalStorage(key, withMetadata);
+            callbackContext.success(result);
+            return true;
+        } else if (action.equals("removeLocalStorage")) {
+            final String key = data.getString(0);
+            UserCacheFactory.getUserCache(ctxt)
+                    .removeLocalStorage(key);
             callbackContext.success();
             return true;
         } else if (action.equals("clearEntries")) {

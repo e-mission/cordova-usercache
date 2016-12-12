@@ -54,11 +54,18 @@
 
 - (NSDictionary*) getDocument:(NSString*)key withMetadata:(BOOL)withMetadata;
 
+// Versions that function as a local k-v store, for data to be shared between native and javascript
+// No wrapper classes.
+- (void) putLocalStorage:(NSString*)label jsonValue:(NSDictionary*)value;
+- (NSMutableDictionary*) getLocalStorage:(NSString*) key withMetadata:(BOOL)withMetadata;
+- (void) removeLocalStorage:(NSString*) key;
+
 - (double) getTsOfLastTransition;
 - (NSArray*) syncPhoneToServer;
 - (void) syncServerToPhone:(NSArray*)documentArray;
 
 + (TimeQuery*) getTimeQuery:(NSArray*)pointList;
++ (TimeQuery*) getAllTimeQuery;
 + (NSString*) getTimezone:(NSDictionary*)entry;
 + (NSDate*) getWriteTs:(NSDictionary*)entry;
 
