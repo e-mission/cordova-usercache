@@ -101,7 +101,7 @@
         BOOL withMetadata = [[[command arguments] objectAtIndex:2] boolValue];
         NSArray* resultDoc = [[BuiltinUserCache database] getLastMessage:key
                                                                 nEntries:nEntries
-                                                            withMetadata:withMetadata];
+                                                                   withMetadata:withMetadata];
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK
                                    messageAsArray:resultDoc];
@@ -189,7 +189,7 @@
     @try {
         NSString* key = [[command arguments] objectAtIndex:0];
         NSDictionary* value = [command.arguments objectAtIndex:1];
-        
+
         [[BuiltinUserCache database] putSensorData:key jsonValue:value];
         CDVPluginResult* result = [CDVPluginResult
                                    resultWithStatus:CDVCommandStatus_OK];
@@ -202,6 +202,70 @@
                                    messageAsString:msg];
         [self.commandDelegate sendPluginResult:result callbackId:callbackId];
     }
+}
+
+- (void) putLocalStorage:(CDVInvokedUrlCommand *)command
+{
+    NSString* callbackId = [command callbackId];
+    @try {
+        NSString* key = [[command arguments] objectAtIndex:0];
+        NSDictionary* value = [command.arguments objectAtIndex:1];
+        
+        [[BuiltinUserCache database] putLocalStorage:key jsonValue:value];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_OK];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+    @catch (NSException *exception) {
+        NSString* msg = [NSString stringWithFormat: @"While putting sensor data, error %@", exception];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_ERROR
+                                   messageAsString:msg];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+}
+
+- (void) getLocalStorage:(CDVInvokedUrlCommand*)command
+{
+    NSString* callbackId = [command callbackId];
+    @try {
+        NSString* key = [[command arguments] objectAtIndex:0];
+        BOOL withMetadata = [[[command arguments] objectAtIndex:1] boolValue];
+        NSDictionary* resultDoc = [[BuiltinUserCache database] getLocalStorage:key
+                                                             withMetadata:withMetadata];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_OK
+                                   messageAsDictionary:resultDoc];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+    @catch (NSException *exception) {
+        NSString* msg = [NSString stringWithFormat: @"While getting messages, error %@", exception];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_ERROR
+                                   messageAsString:msg];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+    
+}
+
+- (void) removeLocalStorage:(CDVInvokedUrlCommand*)command
+{
+    NSString* callbackId = [command callbackId];
+    @try {
+        NSString* key = [[command arguments] objectAtIndex:0];
+        [[BuiltinUserCache database] removeLocalStorage:key];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_OK];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+    @catch (NSException *exception) {
+        NSString* msg = [NSString stringWithFormat: @"While getting messages, error %@", exception];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_ERROR
+                                   messageAsString:msg];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+
 }
 
 - (void) clearEntries:(CDVInvokedUrlCommand *)command
