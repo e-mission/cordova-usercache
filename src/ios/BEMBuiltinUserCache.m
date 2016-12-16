@@ -379,6 +379,20 @@ static BuiltinUserCache *_database;
     return wrapperJSON;
 }
 
+- (NSArray*) getFirstValues:(NSString*) key nEntries:(int)nEntries
+                      type:(NSString*)type withMetadata:(BOOL)withMetadata
+{
+    /*
+     * Note: the first getKey(keyRes) is the key of the message (e.g. 'background/location').
+     * The second getKey(tq.keyRes) is the key of the time query (e.g. 'write_ts')
+     */
+    NSString* queryString = [NSString
+                             stringWithFormat:@"SELECT %@ FROM %@ WHERE %@ = '%@' AND %@ = '%@' ORDER BY write_ts LIMIT %d",
+                             [self getSelCols:withMetadata], TABLE_USER_CACHE, KEY_KEY, key, KEY_TYPE, type, nEntries];
+    NSArray *wrapperJSON = [self readSelectResults:queryString withMetadata:withMetadata];
+    return wrapperJSON;
+}
+
 - (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries wrapperClass:(Class)cls {
     return [self wrapClass:[self getLastValues:[self getStatName:key] nEntries:nEntries
                                           type:SENSOR_DATA_TYPE withMetadata:NO] wrapperClass:cls];
@@ -397,6 +411,28 @@ static BuiltinUserCache *_database;
 
 - (NSArray*) getLastMessage:(NSString*)key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata {
     return [self wrapJSON:[self getLastValues:[self getStatName:key] nEntries:nEntries
+                                         type:MESSAGE_TYPE withMetadata:withMetadata]
+             withMetadata:withMetadata];
+}
+
+- (NSArray*) getFirstSensorData:(NSString*) key nEntries:(int)nEntries wrapperClass:(Class)cls {
+    return [self wrapClass:[self getFirstValues:[self getStatName:key] nEntries:nEntries
+                                          type:SENSOR_DATA_TYPE withMetadata:NO] wrapperClass:cls];
+}
+
+- (NSArray*) getFirstMessage:(NSString*)key nEntries:(int)nEntries wrapperClass:(Class)cls {
+    return [self wrapClass:[self getFirstValues:[self getStatName:key] nEntries:nEntries
+                                          type:MESSAGE_TYPE withMetadata:NO] wrapperClass:cls];
+}
+
+- (NSArray*) getFirstSensorData:(NSString*) key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata {
+    return [self wrapJSON:[self getFirstValues:[self getStatName:key] nEntries:nEntries
+                                         type:SENSOR_DATA_TYPE withMetadata:withMetadata]
+             withMetadata:withMetadata];
+}
+
+- (NSArray*) getFirstMessage:(NSString*)key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata {
+    return [self wrapJSON:[self getFirstValues:[self getStatName:key] nEntries:nEntries
                                          type:MESSAGE_TYPE withMetadata:withMetadata]
              withMetadata:withMetadata];
 }

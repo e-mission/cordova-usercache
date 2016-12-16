@@ -339,6 +339,38 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     }
 
     @Override
+    public <T> T[] getFirstMessages(int key, int nEntries, Class<T> classOfT) {
+        return wrapGson(getFirstValues(getKey(key), MESSAGE_TYPE, nEntries, false), classOfT);
+    }
+
+    @Override
+    public <T> T[] getFirstSensorData(int key, int nEntries, Class<T> classOfT) {
+        return wrapGson(getFirstValues(getKey(key), SENSOR_DATA_TYPE, nEntries, false), classOfT);
+    }
+
+    @Override
+    public JSONArray getFirstMessages(String key, int nEntries, boolean withMetadata) throws JSONException {
+        return wrapJson(getFirstValues(key, MESSAGE_TYPE, nEntries, withMetadata), withMetadata);
+    }
+
+    @Override
+    public JSONArray getFirstSensorData(String key, int nEntries, boolean withMetadata) throws JSONException {
+        return wrapJson(getFirstValues(key, SENSOR_DATA_TYPE, nEntries, withMetadata), withMetadata);
+    }
+
+    public Object[] getFirstValues(String key, String type, int nEntries, boolean withMetadata) {
+        String queryString = "SELECT "+getSelCols(withMetadata)+" FROM "+TABLE_USER_CACHE+
+                " WHERE "+KEY_KEY+" = '"+ key + "'"+
+                " AND "+KEY_TYPE+" = '" + type + "'" +
+                " ORDER BY write_ts LIMIT "+nEntries;
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor resultCursor = db.rawQuery(queryString, null);
+
+        Object[] valueList = getValuesFromCursor(resultCursor, withMetadata);
+        return valueList;
+    }
+
+    @Override
     public JSONObject getLocalStorage(String key, boolean withMetadata) throws JSONException {
         JSONArray wrappedArray = wrapJson(getValuesForInterval(key, LOCAL_STORAGE_TYPE, getAllTimeQuery(cachedCtx), withMetadata), withMetadata);
         if (wrappedArray.length() == 0) {

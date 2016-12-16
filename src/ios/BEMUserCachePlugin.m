@@ -141,6 +141,56 @@
     }
 }
 
+- (void) getFirstMessages:(CDVInvokedUrlCommand*)command
+{
+    NSString* callbackId = [command callbackId];
+    @try {
+        NSString* key = [[command arguments] objectAtIndex:0];
+        NSString* nEntriesStr = [command.arguments objectAtIndex:1];
+        int nEntries = [nEntriesStr intValue];
+        BOOL withMetadata = [[[command arguments] objectAtIndex:2] boolValue];
+        NSArray* resultDoc = [[BuiltinUserCache database] getLastMessage:key
+                                                                nEntries:nEntries
+                                                            withMetadata:withMetadata];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_OK
+                                   messageAsArray:resultDoc];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+    @catch (NSException *exception) {
+        NSString* msg = [NSString stringWithFormat: @"While get last messages, error %@", exception];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_ERROR
+                                   messageAsString:msg];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+}
+
+- (void) getFirstSensorData:(CDVInvokedUrlCommand *)command
+{
+    NSString* callbackId = [command callbackId];
+    @try {
+        NSString* key = [[command arguments] objectAtIndex:0];
+        NSString* nEntriesStr = [command.arguments objectAtIndex:1];
+        int nEntries = [nEntriesStr intValue];
+        BOOL withMetadata = [[[command arguments] objectAtIndex:2] boolValue];
+        NSArray* resultDoc = [[BuiltinUserCache database] getLastMessage:key
+                                                                nEntries:nEntries
+                                                            withMetadata:withMetadata];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_OK
+                                   messageAsArray:resultDoc];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+    @catch (NSException *exception) {
+        NSString* msg = [NSString stringWithFormat: @"While getting last messages, error %@", exception];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_ERROR
+                                   messageAsString:msg];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+}
+
 - (void) putMessage:(CDVInvokedUrlCommand *)command
 {
     NSString* callbackId = [command callbackId];

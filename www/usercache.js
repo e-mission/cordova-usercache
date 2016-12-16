@@ -86,6 +86,18 @@ var UserCache = {
         });
     },
 
+    getFirstMessages: function(key, nEntries, withMetadata) {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "getFirstMessages", [key, nEntries, withMetadata]);
+        });
+    },
+
+    getFirstSensorData: function(key, nEntries, withMetadata) {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "getFirstSensorData", [key, nEntries, withMetadata]);
+        });
+    },
+
     putMessage: function(key, value) {
         return new Promise(function(resolve, reject) {
             exec(resolve, reject, "UserCache", "putMessage", [key, value]);

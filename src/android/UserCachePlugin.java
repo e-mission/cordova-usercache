@@ -77,6 +77,22 @@ public class UserCachePlugin extends CordovaPlugin {
                     .getLastSensorData(key, nEntries, withMetadata);
             callbackContext.success(result);
             return true;
+        } else if (action.equals("getFirstMessages")) {
+            final String key = data.getString(0);
+            final int nEntries = data.getInt(1);
+            final boolean withMetadata = data.getBoolean(2);
+            JSONArray result = UserCacheFactory.getUserCache(ctxt)
+                    .getFirstMessages(key, nEntries, withMetadata);
+            callbackContext.success(result);
+            return true;
+        } else if (action.equals("getFirstSensorData")) {
+            final String key = data.getString(0);
+            final int nEntries = data.getInt(1);
+            final boolean withMetadata = data.getBoolean(2);
+            JSONArray result = UserCacheFactory.getUserCache(ctxt)
+                    .getFirstSensorData(key, nEntries, withMetadata);
+            callbackContext.success(result);
+            return true;
         } else if (action.equals("getLocalStorage")) {
             final String key = data.getString(0);
             final int nEntries = data.getInt(1);

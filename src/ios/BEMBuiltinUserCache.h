@@ -39,18 +39,22 @@
 
 - (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq wrapperClass:(Class)cls;
 - (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries wrapperClass:(Class)cls;
+- (NSArray*) getFirstSensorData:(NSString*) key nEntries:(int)nEntries wrapperClass:(Class)cls;
 
 - (NSArray*) getMessageForInterval:(NSString*) key tq:(TimeQuery*)tq wrapperClass:(Class)cls;
 - (NSArray*) getLastMessage:(NSString*) key nEntries:(int)nEntries wrapperClass:(Class)cls;
+- (NSArray*) getFirstMessage:(NSString*) key nEntries:(int)nEntries wrapperClass:(Class)cls;
 - (NSObject*) getDocument:(NSString*)key wrapperClass:(Class)cls;
 
 // Versions that return JSON, for use with the plugin interface
 
 - (NSArray*) getSensorDataForInterval:(NSString*) key tq:(TimeQuery*)tq withMetadata:(BOOL)withMetadata;
 - (NSArray*) getLastSensorData:(NSString*) key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata;
+- (NSArray*) getFirstSensorData:(NSString*) key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata;
 
 - (NSArray*) getMessageForInterval:(NSString*) key tq:(TimeQuery*)tq withMetadata:(BOOL)withMetadata;
 - (NSArray*) getLastMessage:(NSString*) key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata;
+- (NSArray*) getFirstMessage:(NSString*) key nEntries:(int)nEntries withMetadata:(BOOL)withMetadata;
 
 - (NSDictionary*) getDocument:(NSString*)key withMetadata:(BOOL)withMetadata;
 
