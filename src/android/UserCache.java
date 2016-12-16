@@ -73,6 +73,9 @@ public interface UserCache {
     public abstract <T> T[] getLastMessages(int key, int nEntries, Class<T> classOfT);
     public abstract <T> T[] getLastSensorData(int key, int nEntries, Class<T> classOfT);
 
+    public abstract <T> T[] getFirstMessages(int key, int nEntries, Class<T> classOfT);
+    public abstract <T> T[] getFirstSensorData(int key, int nEntries, Class<T> classOfT);
+
     // Versions that return a raw JSON object. These are intended for use with the plugin.
     // Note that for the plugin to use the prior interface, we would need to keep a mapping
     // of keys to wrapper objects, which is:
@@ -89,6 +92,10 @@ public interface UserCache {
     public abstract JSONArray getLastSensorData(String key, int nEntries,
                                                 boolean withMetadata) throws JSONException;
 
+    public abstract JSONArray getFirstMessages(String key, int nEntries,
+                                              boolean withMetadata) throws JSONException;
+    public abstract JSONArray getFirstSensorData(String key, int nEntries,
+                                                boolean withMetadata) throws JSONException;
 
     /*
      * Versions that retrieve temporary configurations that need to be shared between

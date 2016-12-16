@@ -10,6 +10,8 @@
 
 - (void) getLastMessages:(CDVInvokedUrlCommand*)command;
 - (void) getLastSensorData:(CDVInvokedUrlCommand *)command;
+- (void) getFirstMessages:(CDVInvokedUrlCommand*)command;
+- (void) getFirstSensorData:(CDVInvokedUrlCommand *)command;
 
 - (void) putMessage:(CDVInvokedUrlCommand *)command;
 - (void) putRWDocument:(CDVInvokedUrlCommand *)command;
