@@ -95,11 +95,19 @@ public class UserCachePlugin extends CordovaPlugin {
             return true;
         } else if (action.equals("getLocalStorage")) {
             final String key = data.getString(0);
-            final int nEntries = data.getInt(1);
-            final boolean withMetadata = data.getBoolean(2);
+            final boolean withMetadata = data.getBoolean(1);
             JSONObject result = UserCacheFactory.getUserCache(ctxt)
                     .getLocalStorage(key, withMetadata);
+            if (result == null) {
+                // if we don't do this, we end up with passing in a null object
+                // and we call toString() on it in the constructor of PluginResult
+                // which crashes
+                // there is a null check for string, so let's use that instead to workaround
+                String temp = null;
+                callbackContext.success(temp);
+            } else {
             callbackContext.success(result);
+            }
             return true;
         } else if (action.equals("putMessage")) {
             final String key = data.getString(0);
