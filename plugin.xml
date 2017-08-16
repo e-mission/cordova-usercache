@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <plugin xmlns="http://www.phonegap.com/ns/plugins/1.0"
         id="edu.berkeley.eecs.emission.cordova.usercache"
-        version="0.0.1">
+        version="1.0.0">
 
   <name>UserCache</name>
   <description>Cache messages to and from the server so that we can retrieve

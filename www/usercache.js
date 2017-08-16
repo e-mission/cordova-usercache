@@ -35,11 +35,11 @@ var UserCache = {
         return (Object.keys(resultDoc).length) == 0
     },
 
-    getAllSensorData: function(key) {
-        return UserCache.getSensorDataForInterval(key, UserCache.getAllTimeQuery(), true);
+    getAllSensorData: function(key, withMetadata) {
+        return UserCache.getSensorDataForInterval(key, UserCache.getAllTimeQuery(), withMetadata);
     },
-    getAllMessages: function(key) {
-        return UserCache.getMessagesForInterval(key, UserCache.getAllTimeQuery(), true);
+    getAllMessages: function(key, withMetadata) {
+        return UserCache.getMessagesForInterval(key, UserCache.getAllTimeQuery(), withMetadata);
     },
     getSensorDataForInterval: function(key, tq, withMetadata) {
         /*
