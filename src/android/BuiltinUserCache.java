@@ -583,7 +583,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
                             .contains("\"transition\":\"local.transition.stopped_moving\"")) {
                         // when we find stopped moving, we return, so this must be the first
                         // time we have found it
-                        NotificationHelper.createNotification(cachedCtx, 5, "Had to look in all!");
+                        NotificationHelper.createNotification(cachedCtx, 5, cachedCtx.getString(R.string.had_to_look_in_all));
                         Log.w(cachedCtx, TAG, "regex did not find entry, had to search all");
                         double retVal = allCursor.getDouble(allCursor.getColumnIndex(KEY_WRITE_TS));
                         allCursor.close();
