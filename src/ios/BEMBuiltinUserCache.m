@@ -663,8 +663,18 @@ static BuiltinUserCache *_database;
     }
 }
 
-+ (TimeQuery*) getTimeQuery:(NSArray*)pointList {
-    assert(pointList.count != 0);
+// The array can contain entries other than points, such as configurations and consent documents.
++ (TimeQuery*) getTimeQuery:(NSArray*)entryList {
+    assert(entryList.count != 0);
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"unfiltered entry list (length %lu) runs from %@ to %@", entryList.count, entryList[0], entryList[entryList.count - 1]]];
+    NSPredicate *nonRWPredicate =
+    [NSPredicate predicateWithBlock:^BOOL(id  _Nullable evaluatedObject, NSDictionary<NSString *,id> * _Nullable bindings) {
+        return ![evaluatedObject[@"metadata"][@"type"] isEqual:RW_DOCUMENT_TYPE];
+    }];
+
+    NSArray* pointList = [entryList filteredArrayUsingPredicate:nonRWPredicate];
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"filtered entry list (length %lu) runs from %@ to %@", pointList.count, pointList[0], pointList[pointList.count - 1]]];
+
     Metadata* startMd = [Metadata new];
     [DataUtils dictToWrapper:[pointList[0] objectForKey:METADATA_TAG] wrapper:startMd];
     double start_ts = startMd.write_ts;
