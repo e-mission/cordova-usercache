@@ -1,13 +1,13 @@
 {
-  "name": "em-cordova-usercache",
-  "version": "1.0.0",
-  "description": "Simple package that stores all the connection settings that need to be configured",
+  "name": "cordova-plugin-em-usercache",
+  "version": "1.1.2",
+  "description": "Cache messages to and from the server so that we can retrieve them quickly",
+  "license": "BSD-3-clause",
   "cordova": {
-    "id": "em-cordova-usercache",
+    "id": "cordova-plugin-em-usercache",
     "platforms": [
       "android",
-      "ios",
-      "windows"
+      "ios"
     ]
   },
   "repository": {
@@ -29,7 +29,7 @@
     },
     {
       "name": "cordova-android",
-      "version": ">=6.0.0"
+      "version": ">=7.0.0"
     },
     {
       "name": "android-sdk",
@@ -41,7 +41,6 @@
     }
   ],
   "author": "K. Shankari",
-  "license": "BSD 3-clause",
   "bugs": {
     "url": "https://github.com/e-mission/cordova-usercache/issues"
   },
