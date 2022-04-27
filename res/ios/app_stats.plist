@@ -16,5 +16,15 @@
 	<string>pull_duration</string>
 	<key>push_duration</key>
 	<string>push_duration</string>
+	<key>no_locations_while_ending_trip</key>
+	<string>no_locations_while_ending_trip</string>
+	<key>last_transition_is_not_trip_end_detected</key>
+	<string>last_transition_is_not_trip_end_detected</string>
+	<key>first_loc_null</key>
+	<string>first_loc_null</string>
+	<key>first_loc_before_start_transition</key>
+	<string>first_loc_before_start_transition</string>
+	<key>before_and_after_point_count_zero</key>
+	<string>before_and_after_point_count_zero</string>
 </dict>
 </plist>
