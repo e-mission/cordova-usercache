@@ -146,6 +146,16 @@ public class UserCachePlugin extends CordovaPlugin {
                     .removeLocalStorage(key);
             callbackContext.success();
             return true;
+        } else if (action.equals("listAllUniqueKeys")) {
+            JSONArray result = UserCacheFactory.getUserCache(ctxt)
+                    .listAllUniqueKeys();
+            callbackContext.success(result);
+            return true;
+        } else if (action.equals("listAllLocalStorageKeys")) {
+            JSONArray result = UserCacheFactory.getUserCache(ctxt)
+                    .listAllLocalStorageKeys();
+            callbackContext.success(result);
+            return true;
         } else if (action.equals("clearEntries")) {
             final JSONObject tqJsonObject = data.getJSONObject(1);
 

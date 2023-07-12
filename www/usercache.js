@@ -127,7 +127,18 @@ var UserCache = {
             exec(resolve, reject, "UserCache", "removeLocalStorage", [key]);
         });
     },
-
+    // help debug missing/deleted storage
+    // https://github.com/e-mission/e-mission-docs/issues/932
+    listAllUniqueKeys: function() {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "listAllUniqueKeys", []);
+        });
+    },
+    listAllLocalStorageKeys: function() {
+        return new Promise(function(resolve, reject) {
+            exec(resolve, reject, "UserCache", "listAllLocalStorageKeys", []);
+        });
+    },
     // No putSensorData exposed through javascript since it is not intended for regularly sensed data
     clearAllEntries: function() {
         return UserCache.clearEntries(UserCache.getAllTimeQuery());

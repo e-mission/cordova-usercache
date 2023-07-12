@@ -21,6 +21,9 @@
 - (void) getLocalStorage:(CDVInvokedUrlCommand *)command;
 - (void) removeLocalStorage:(CDVInvokedUrlCommand *)command;
 
+- (void) listAllUniqueKeys:(CDVInvokedUrlCommand *)command;
+- (void) listAllLocalStorageKeys:(CDVInvokedUrlCommand *)command;
+
 - (void) clearEntries:(CDVInvokedUrlCommand *)command;
 - (void) invalidateCache:(CDVInvokedUrlCommand *)command;
 - (void) clearAll:(CDVInvokedUrlCommand *)command;

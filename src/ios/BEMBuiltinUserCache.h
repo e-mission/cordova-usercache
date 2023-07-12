@@ -73,6 +73,9 @@
 + (NSString*) getTimezone:(NSDictionary*)entry;
 + (NSDate*) getWriteTs:(NSDictionary*)entry;
 
+- (NSArray*) listAllUniqueKeys;
+- (NSArray*) listAllLocalStorageKeys;
+
 - (void) clearEntries:(TimeQuery*)tq;
 - (void) clearSupersededRWDocs:(TimeQuery*)tq;
 - (void) clearObsoleteDocs:(TimeQuery*)tq;
