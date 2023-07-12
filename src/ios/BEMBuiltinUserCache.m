@@ -801,9 +801,20 @@ static BuiltinUserCache *_database;
 }
 
 - (void) checkAfterPull {
+    NSArray* checkResults = [self listAllUniqueKeys];
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"After clear complete, cache has entries %@", [checkResults componentsJoinedByString:@", "]] showUI:FALSE];
+}
+
+- (NSArray*) listAllUniqueKeys {
     NSString* checkQuery = [NSString stringWithFormat:@"SELECT DISTINCT(%@) FROM %@", KEY_KEY, TABLE_USER_CACHE];
     NSArray* checkResults = [self readSelectResults:checkQuery withMetadata:NO];
-    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"After clear complete, cache has entries %@", [checkResults componentsJoinedByString:@", "]] showUI:FALSE];
+    return checkResults;
+}
+
+- (NSArray*) listAllLocalStorageKeys {
+    NSString* checkQuery = [NSString stringWithFormat:@"SELECT DISTINCT(%@) FROM %@ WHERE %@ = '%@'", KEY_KEY, TABLE_USER_CACHE, KEY_TYPE, LOCAL_STORAGE_TYPE];
+    NSArray* checkResults = [self readSelectResults:checkQuery withMetadata:NO];
+    return checkResults;
 }
 
 - (void)invalidateCache:(TimeQuery *)tq

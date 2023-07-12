@@ -318,6 +318,45 @@
 
 }
 
+
+- (void) listAllUniqueKeys:(CDVInvokedUrlCommand *)command
+{
+    NSString* callbackId = [command callbackId];
+    @try {
+        NSArray* resultDoc = [[BuiltinUserCache database] listAllUniqueKeys];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_OK
+                                   messageAsArray:resultDoc];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+    @catch (NSException *exception) {
+        NSString* msg = [NSString stringWithFormat: @"While getting sensor data, error %@", exception];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_ERROR
+                                   messageAsString:msg];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+}
+
+- (void) listAllLocalStorageKeys:(CDVInvokedUrlCommand *)command
+{
+    NSString* callbackId = [command callbackId];
+    @try {
+        NSArray* resultDoc = [[BuiltinUserCache database] listAllLocalStorageKeys];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_OK
+                                   messageAsArray:resultDoc];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+    @catch (NSException *exception) {
+        NSString* msg = [NSString stringWithFormat: @"While getting sensor data, error %@", exception];
+        CDVPluginResult* result = [CDVPluginResult
+                                   resultWithStatus:CDVCommandStatus_ERROR
+                                   messageAsString:msg];
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+    }
+}
+
 - (void) clearEntries:(CDVInvokedUrlCommand *)command
 {
     NSString* callbackId = [command callbackId];

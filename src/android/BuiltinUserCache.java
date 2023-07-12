@@ -489,12 +489,35 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         Log.i(cachedCtx, TAG, "Deleted " + delDocs + " document entries");
         }
 
-    public void checkAfterPull() {
+    // This private method that returns the object array instead of a JSONArray
+    // is to support reusing the method in checkAfterPull without dealing with
+    // catching or propagating the JSONException throughout
+    public Object[] listAllUniqueKeyObjectList() {
         SQLiteDatabase db = this.getWritableDatabase();
         String checkQuery = "SELECT "+KEY_KEY+" from userCache";
         Cursor queryResult = db.rawQuery(checkQuery, null);
-        Object[] rwKeys = getValuesFromCursor(queryResult, false);
+        Object[] allKeyObjects = getValuesFromCursor(queryResult, false);
+        return allKeyObjects;
+    }
+
+    public void checkAfterPull() {
+        Object[] rwKeys = listAllUniqueKeyObjectList();
         Log.i(cachedCtx, TAG, "After clear complete, cache has "+Arrays.toString(rwKeys)+" entries");
+    }
+
+    public JSONArray listAllUniqueKeys() throws JSONException {
+        Object[] allKeyObjects = listAllUniqueKeyObjectList();
+        JSONArray allKeyStrings = new JSONArray(allKeyObjects);
+        return allKeyStrings;
+    }
+
+    public JSONArray listAllLocalStorageKeys() throws JSONException {
+        SQLiteDatabase db = this.getWritableDatabase();
+        String checkQuery = "SELECT "+KEY_KEY+" from userCache WHERE "+KEY_TYPE+" = '"+LOCAL_STORAGE_TYPE+"'";
+        Cursor queryResult = db.rawQuery(checkQuery, null);
+        Object[] lsKeyObjects = getValuesFromCursor(queryResult, false);
+        JSONArray lsKeyStrings = new JSONArray(lsKeyObjects);
+        return lsKeyStrings;
     }
 
     @Override

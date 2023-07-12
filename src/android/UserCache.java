@@ -117,6 +117,14 @@ public interface UserCache {
     // object
     public abstract Object getDocument(String key, boolean withMetadata) throws JSONException;
 
+        /*
+         * Support for debugging mysteriously deleted storage
+         * https://github.com/e-mission/e-mission-docs/issues/932
+         */
+
+    public abstract JSONArray listAllUniqueKeys() throws JSONException;
+    public abstract JSONArray listAllLocalStorageKeys() throws JSONException;
+
     /**
      * Delete documents that match the specified time query.
      * This allows us to support eventual consistency without locking.
