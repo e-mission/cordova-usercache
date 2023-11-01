@@ -106,6 +106,11 @@ public interface UserCache {
     public abstract void putLocalStorage(String key, JSONObject value);
     public abstract JSONObject getLocalStorage(String key, boolean withMetadata) throws JSONException;
     public abstract void removeLocalStorage(String key);
+
+    // New helper functions to put a bound on how many geofence locations can be saved on a phone.
+    public abstract JSONArray getLocalStorageArr(String key, boolean withMetadata) throws JSONException;
+    public abstract void removeOldestGeofence(String key) throws JSONException;
+
         /**
          * Return the document that matches the specified key.
          * The class of T needs to be passed in, and an appropriate type will be reconstructed

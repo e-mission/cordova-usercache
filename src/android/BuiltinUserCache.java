@@ -370,6 +370,39 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         return valueList;
     }
 
+    /**
+     * Gets all data in DB given a key and returns it in a JSONArray
+     * @param key
+     * @param withMetadata
+     * @return JSONArray of data from SQL database
+     * @throws JSONException
+     */
+    public JSONArray getLocalStorageArr(String key, boolean withMetadata) throws JSONException {
+        JSONArray wrappedArray = wrapJson(getValuesForInterval(key, LOCAL_STORAGE_TYPE, getAllTimeQuery(cachedCtx), withMetadata), withMetadata);
+        if (wrappedArray.length() == 0) {
+            return new JSONArray();
+        } else {
+            return wrappedArray;
+        }
+    }
+    
+    /**
+     * Given a key, this function removes the oldest row among the entries with that key, which is determined by WRITE_TS. 
+     * @param key
+     */
+    public void removeOldestGeofence(String key) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        // Construct the WHERE clause to identify the oldest entry with the specified key
+        String whereClause = KEY_KEY + " = ? AND " + KEY_WRITE_TS + " = (SELECT MIN(" + KEY_WRITE_TS + ") FROM " + TABLE_USER_CACHE + " WHERE " + KEY_KEY + " = ?)";
+        String[] whereArgs = { key, key };
+
+        // Execute the DELETE statement
+        db.delete(TABLE_USER_CACHE, whereClause, whereArgs);
+
+        Log.i(cachedCtx, TAG, "in removeLocalStorage, deleted document entries");
+    }
+
     @Override
     public JSONObject getLocalStorage(String key, boolean withMetadata) throws JSONException {
         JSONArray wrappedArray = wrapJson(getValuesForInterval(key, LOCAL_STORAGE_TYPE, getAllTimeQuery(cachedCtx), withMetadata), withMetadata);
