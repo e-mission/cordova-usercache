@@ -398,20 +398,26 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     }
     
     /**
-     * Given a key, this function removes the oldest row among the entries with that key, which is determined by WRITE_TS. 
+     * Delete entries at a given key older than a certain time stamp. Used to bound the number of entries
+     * allowed in the DB at a given time.
      * @param key
+     * @param writeTs
      */
-    public void removeOldestEntry(String key) {
-        SQLiteDatabase db = this.getWritableDatabase();
+    public void deleteEntriesOlderThan(String key, double writeTs){
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
 
-        // Construct the WHERE clause to identify the oldest entry with the specified key
-        String whereClause = KEY_KEY + " = ? AND " + KEY_WRITE_TS + " = (SELECT MIN(" + KEY_WRITE_TS + ") FROM " + TABLE_USER_CACHE + " WHERE " + KEY_KEY + " = ?)";
-        String[] whereArgs = { key, key };
-
-        // Execute the DELETE statement
-        db.delete(TABLE_USER_CACHE, whereClause, whereArgs);
-
-        Log.i(cachedCtx, TAG, "in removeLocalStorage, deleted document entries");
+            // Construct the WHERE clause to identify the oldest entry with the specified key
+            String whereClause = KEY_KEY + " = ? AND " + KEY_WRITE_TS + " < " + writeTs;
+            String[] whereArgs = { key };
+    
+            // Execute the DELETE statement
+            db.delete(TABLE_USER_CACHE, whereClause, whereArgs);
+    
+            Log.i(cachedCtx, TAG, "in removeLocalStorage, deleted document entries older than "+writeTs);
+        } catch (Exception e) {
+            Log.e(cachedCtx, TAG, e.toString());
+        }
     }
 
     /**
@@ -425,16 +431,18 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
             JSONArray values = getLocalStorageArr(key, false);
 
             if (values.length() >= BOUND){
-                // Number of items to remove to get to below bound
-                int remove = values.length() - BOUND + 1; 
-                Log.i(cachedCtx, TAG, "Removing " + remove + " entries to keep below bound: " + BOUND + "...");
+                // We want to keep BOUND - 1 of the newest entries and then delete the rest to make room for the next one we are adding
+                Object[] lastBoundMinusOne = getLastValues(key, LOCAL_STORAGE_TYPE, BOUND-1, true); 
 
-                // Remove entries until we are below the bound
-                while (remove > 0) {
-                    removeOldestEntry(key);
-                    remove--;
-                }
+                // Find last entry we are saving, use it's timestamp as the limit
+                JSONObject lastEntryBeforeBound = (JSONObject) lastBoundMinusOne[lastBoundMinusOne.length - 1];
+                JSONObject metadata = lastEntryBeforeBound.getJSONObject("metadata");
+                double valueToCast = (double) metadata.get(KEY_WRITE_TS);
+
+                // Delete all entries older than that time stamp
+                deleteEntriesOlderThan(key, valueToCast); 
             }
+            
 
             // Add new value to DB
             putValue(key, value.toString(), LOCAL_STORAGE_TYPE);
