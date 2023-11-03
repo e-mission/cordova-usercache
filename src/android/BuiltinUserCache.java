@@ -62,6 +62,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     private static final String DOCUMENT_TYPE = "document";
     private static final String RW_DOCUMENT_TYPE = "rw-document";
     private static final String LOCAL_STORAGE_TYPE = "local-storage";
+    private static final int BOUND = 3;
 
     private Context cachedCtx;
     private static BuiltinUserCache database;
@@ -380,9 +381,66 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
         }
     }
 
+    /**
+     * Gets all data in DB given a key and returns it in a JSONArray
+     * @param key
+     * @param withMetadata
+     * @return JSONArray of data from SQL database
+     * @throws JSONException
+     */
+    public JSONArray getLocalStorageArr(String key, boolean withMetadata) throws JSONException {
+        JSONArray wrappedArray = wrapJson(getValuesForInterval(key, LOCAL_STORAGE_TYPE, getAllTimeQuery(cachedCtx), withMetadata), withMetadata);
+        if (wrappedArray.length() == 0) {
+            return new JSONArray();
+        } else {
+            return wrappedArray;
+        }
+    }
+    
+    /**
+     * Given a key, this function removes the oldest row among the entries with that key, which is determined by WRITE_TS. 
+     * @param key
+     */
+    public void removeOldestEntry(String key) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        // Construct the WHERE clause to identify the oldest entry with the specified key
+        String whereClause = KEY_KEY + " = ? AND " + KEY_WRITE_TS + " = (SELECT MIN(" + KEY_WRITE_TS + ") FROM " + TABLE_USER_CACHE + " WHERE " + KEY_KEY + " = ?)";
+        String[] whereArgs = { key, key };
+
+        // Execute the DELETE statement
+        db.delete(TABLE_USER_CACHE, whereClause, whereArgs);
+
+        Log.i(cachedCtx, TAG, "in removeLocalStorage, deleted document entries");
+    }
+
+    /**
+     * Appends JSONObject into DB based on given key. It also bounds the number of entries
+     * per key, so that there is no infinite growth.
+     */
     @Override
     public void putLocalStorage(String key, JSONObject value) {
-        putValue(key, value.toString(), LOCAL_STORAGE_TYPE);
+        try {
+            // Check to see how many values stored in KEY
+            JSONArray values = getLocalStorageArr(key, false);
+
+            if (values.length() >= BOUND){
+                // Number of items to remove to get to below bound
+                int remove = values.length() - BOUND + 1; 
+                Log.i(cachedCtx, TAG, "Removing " + remove + " entries to keep below bound: " + BOUND + "...");
+
+                // Remove entries until we are below the bound
+                while (remove > 0) {
+                    removeOldestEntry(key);
+                    remove--;
+                }
+            }
+
+            // Add new value to DB
+            putValue(key, value.toString(), LOCAL_STORAGE_TYPE);
+        } catch (JSONException e) {
+            Log.e(cachedCtx, TAG, e.toString());
+        }
     }
 
     @Override
