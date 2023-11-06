@@ -408,7 +408,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
             SQLiteDatabase db = this.getWritableDatabase();
 
             // Construct the WHERE clause to identify the oldest entry with the specified key
-            String whereClause = KEY_KEY + " = ? AND " + KEY_WRITE_TS + " < " + writeTs + " AND " + KEY_TYPE + " = '" + LOCAL_STORAGE_TYPE + "'";;
+            String whereClause = KEY_KEY + " = ? AND " + KEY_WRITE_TS + " < " + writeTs + " AND " + KEY_TYPE + " = '" + LOCAL_STORAGE_TYPE + "'";
             String[] whereArgs = { key };
     
             // Execute the DELETE statement
