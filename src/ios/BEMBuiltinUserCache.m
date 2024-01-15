@@ -36,6 +36,8 @@
 #define RW_DOCUMENT_TYPE @"rw-document"
 #define LOCAL_STORAGE_TYPE @"local-storage"
 
+#define BOUND 3
+
 
 #define DB_FILE_NAME @"userCacheDB"
 
@@ -530,25 +532,95 @@ static BuiltinUserCache *_database;
     }
 }
 
+/*
+ * getLocalStorageArr
+ *
+ * Given a string: key and bool: withMetadata, returns all values stored under key in the local storage.
+ */
+- (NSArray*) getLocalStorageArr: (NSString*) key withMetadata:(BOOL)withMetadata {
+    NSLog(@"DEBUG_NATIVE: [getLocalStorageArr] Getting in local storage array for key: %@", key);
+
+    TimeQuery* tq = [BuiltinUserCache getAllTimeQuery];
+    NSArray* wrappedJSON = [self wrapJSON:[self getValuesForInterval:key tq:tq type:LOCAL_STORAGE_TYPE withMetadata:withMetadata] withMetadata:withMetadata];
+    
+    if ([wrappedJSON count] == 0) {
+        return @[];
+    } else {
+        return wrappedJSON;
+    }
+}
 
 /*
+ * putLocalStorage
+ *
  * LocalStorage interface
+ * These are the versions intended temporary configurations that need to be shared between
+ * javascript and native. Functions as standard k-v store, no wrapper classes, no object interface.
+ *
+ * Stores a NSDictionary: value under a NSString: label in the local storage. This function also takes
+ * care of the bounding logic to make sure there are only 3 values stored in the database under a given 
+ * key at a time.
  */
-
-// These are the versions intended temporary configurations that need to be shared between
-// javascript and native. Functions as standard k-v store, no wrapper classes, no object interface.
 - (void)putLocalStorage:(NSString*)label jsonValue:(NSDictionary *)value {
+    NSLog(@"DEBUG_NATIVE: [putLocalStorage] Putting in local storage for key: %@", label);
+
+    // Check to see how many values are stored under KEY
+    NSArray *values = [self getLocalStorageArr: label withMetadata: NO];
+    NSLog(@"DEBUG_NATIVE: [putLocalStorage] Number of values stored for key %@: %lu", label, (unsigned long)[values count]);
+
+    if ([values count] >= BOUND){
+        // We want to keep BOUND - 1 of the newest entries and then delete the rest to make room for the next one we are adding
+        NSArray *lastBoundMinusOne = [self getLastValues:label nEntries: (BOUND - 1) type:LOCAL_STORAGE_TYPE withMetadata:YES];
+
+        // Check if the array is not empty before attempting to get the last object
+        if ([lastBoundMinusOne count] > 0) {
+            NSMutableDictionary *lastEntryBeforeBound = [lastBoundMinusOne lastObject];
+            
+            NSMutableDictionary *metadata = lastEntryBeforeBound[@"metadata"];
+            
+            double valueToCast = [metadata[KEY_WRITE_TS] doubleValue];
+
+            // Delete all entries older than last time stamp
+            [self deleteEntriesOlderThan: label writeTs:valueToCast];
+        } else {
+            NSLog(@"DEBUG_NATIVE: [putLocalStorage] The array is empty in putlocalstorage.");
+        }
+    }
+
+    // Now add the new value to the key
     [self putValue:label value:[DataUtils saveToJSONString:value] type:LOCAL_STORAGE_TYPE];
 }
 
+/*
+ * getLocalStorage
+ *
+ * Given a string: key and bool: withMetadata, returns first value stored under key in the local storage.
+ */
 - (NSMutableDictionary*) getLocalStorage:(NSString*) key withMetadata:(BOOL)withMetadata {
+    NSLog(@"DEBUG_NATIVE: [getLocalStorage] Retrieving local storage for key: %@", key);
+
     TimeQuery* tq = [BuiltinUserCache getAllTimeQuery];
     NSArray* wrappedJSON = [self wrapJSON:[self getValuesForInterval:key tq:tq type:LOCAL_STORAGE_TYPE withMetadata:withMetadata] withMetadata:withMetadata];
     if ([wrappedJSON count] == 0) {
         return NULL;
     } else {
+        NSLog(@"DEBUG_NATIVE: [getLocalStorage] Result found for key %@: %@", key, [wrappedJSON objectAtIndex:0]);
         return [NSMutableDictionary dictionaryWithDictionary:[wrappedJSON objectAtIndex:0]];
     }
+}
+
+/*
+ * deleteEntriesOlderThan
+ *
+ * Given a string: key and double: writeTs, this function deletes all entries under key that are older than the timestampe writeTs.
+ */
+- (void) deleteEntriesOlderThan:(NSString*) key writeTs:(double) writeTs{
+    NSLog(@"DEBUG_NATIVE: [deleteEntriesOlderThan] Deleting entries older than for key: %@", key);
+
+    NSString* deleteQuery = [NSString stringWithFormat:@"DELETE FROM %@ WHERE (%@ = '%@' AND %@ = '%@' AND %@ < %f)",
+                             TABLE_USER_CACHE, KEY_KEY, key, KEY_TYPE, LOCAL_STORAGE_TYPE, KEY_WRITE_TS, writeTs];
+    [LocalNotificationManager addNotification:[NSString stringWithFormat:@"Deleting entries older than %f", writeTs] showUI:FALSE];
+    [self clearQuery:deleteQuery];
 }
 
 - (void) removeLocalStorage:(NSString*) key {
