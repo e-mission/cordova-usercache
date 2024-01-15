@@ -24,7 +24,6 @@
 -(NSString*) getStatName:(NSString*)plistKey;
 
 // We implement the same interface as the android code, to use somewhat tested code
-- (NSArray *)getLastValues:(NSString *)label nEntries:(NSInteger)nEntries;
 
 // Versions that save wrapper classes, for use with native code
 - (void) putSensorData:(NSString*) label value:(NSObject*)value;
