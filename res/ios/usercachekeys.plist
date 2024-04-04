@@ -26,8 +26,8 @@
 	<string>stats/client_nav_event</string>
 	<key>key.usercache.client_error</key>
 	<string>stats/client_error</string>
-  <key>key.usercache.app_config</key>
-  <string>config/app_ui_config</string>
+	<key>key.usercache.app_config</key>
+	<string>config/app_ui_config</string>
 	<key>metadata.usercache.write_ts</key>
 	<string>write_ts</string>
 </dict>
