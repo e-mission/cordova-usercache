@@ -12,6 +12,8 @@
 	<string>background/accelerometer</string>
 	<key>key.usercache.battery</key>
 	<string>background/battery</string>
+	<key>key.usercache.bluetooth_ble</key>
+	<string>background/bluetooth_ble</string>
 	<key>key.usercache.sensor_config</key>
 	<string>config/sensor_config</string>
 	<key>key.usercache.sync_config</key>

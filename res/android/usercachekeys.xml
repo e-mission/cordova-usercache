@@ -5,6 +5,7 @@
     <string name="key.usercache.activity">background/motion_activity</string>
     <string name="key.usercache.accelerometer">background/accelerometer</string>
     <string name="key.usercache.battery">background/battery</string>
+    <string name="key.usercache.bluetooth_ble">background/bluetooth_ble</string>
     <string name="key.usercache.sensor_config">config/sensor_config</string>
     <string name="key.usercache.sync_config">config/sync_config</string>
     <string name="key.usercache.consent_config">config/consent</string>
