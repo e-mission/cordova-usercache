@@ -17,7 +17,7 @@ import java.util.Arrays;
 import java.util.TimeZone;
 
 import edu.berkeley.eecs.emission.R;
-import edu.berkeley.eecs.emission.cordova.tracker.ConfigManager;
+import edu.berkeley.eecs.emission.cordova.tracker.TrackingConfigManager;
 import edu.berkeley.eecs.emission.cordova.unifiedlogger.Log;
 import edu.berkeley.eecs.emission.cordova.tracker.wrapper.Metadata;
 import edu.berkeley.eecs.emission.cordova.unifiedlogger.NotificationHelper;
@@ -719,7 +719,7 @@ public class BuiltinUserCache extends SQLiteOpenHelper implements UserCache {
     }
 
     private double getLastTs() {
-        if (ConfigManager.getConfig(cachedCtx).isDutyCycling()) {
+        if (TrackingConfigManager.getTrackingConfig(cachedCtx).isDutyCycling()) {
             return getTsOfLastTransition();
         } else {
             return getTsOfLastEntry();

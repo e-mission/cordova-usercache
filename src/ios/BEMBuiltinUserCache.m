@@ -11,7 +11,7 @@
 #import "SimpleLocation.h"
 #import "Metadata.h"
 #import "LocationTrackingConfig.h"
-#import "ConfigManager.h"
+#import "BEMTrackingConfigManager.h"
 #import "LocalNotificationManager.h"
 
 // Table name
@@ -525,7 +525,7 @@ static BuiltinUserCache *_database;
 }
 
 -(double)getLastTs {
-    if ([ConfigManager instance].is_duty_cycling) {
+    if ([BEMTrackingConfigManager instance].is_duty_cycling) {
         return [self getTsOfLastTransition];
     } else {
         return [self getTsOfLastEntry];
